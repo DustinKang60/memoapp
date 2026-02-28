@@ -230,7 +230,10 @@ function App() {
   const [wTitle,   setWTitle]   = useState("");
   const [wContent, setWContent] = useState("");
   const [wImages,  setWImages]  = useState([]);
+  const [wApptDate,setWApptDate]= useState(""); // 약속 날짜
+  const [wApptTime,setWApptTime]= useState(""); // 약속 시간
   const [newCat,   setNewCat]   = useState("");
+  const [filterCat,setFilterCat]= useState("전체"); // 검색 카테고리 필터
   const { weather, loading:wLoad, error:wErr, fetchWeather } = useWeather();
   const fileRef = useRef();
 
@@ -253,12 +256,14 @@ function App() {
   // CRUD
   function startWrite(cat, date=null) {
     setWCat(cat); setWTitle(""); setWContent(""); setWImages([]);
+    setWApptDate(""); setWApptTime("");
     setSelDate(date||new Date()); setEditMemo(null);
     setCatPop(false); setScreen("write");
   }
   function openEdit(memo) {
     setEditMemo(memo); setWCat(memo.category); setWTitle(memo.title);
     setWContent(memo.content); setWImages(memo.images||[]); setSelDate(memo.date);
+    setWApptDate(memo.apptDate||""); setWApptTime(memo.apptTime||"");
     setScreen("write");
   }
   function doSave() {
@@ -269,9 +274,32 @@ function App() {
       title: wTitle||"(제목 없음)", content: wContent,
       weather: wCat==="일기" ? weather : undefined,
       images: wImages,
+      apptDate: wCat==="약속" ? wApptDate : undefined,
+      apptTime: wCat==="약속" ? wApptTime : undefined,
     };
     setMemos(p => editMemo ? p.map(x=>x.id===m.id?m:x) : [m,...p]);
+    // 약속 알림 등록
+    if (wCat==="약속" && wApptDate && wApptTime) {
+      scheduleApptNotif(m);
+    }
     setScreen("main");
+  }
+
+  function scheduleApptNotif(m) {
+    if (!("Notification" in window)) return;
+    Notification.requestPermission().then(perm => {
+      if (perm !== "granted") return;
+      const apptMs = new Date(`${m.apptDate}T${m.apptTime}`).getTime();
+      const notifMs = apptMs - 60*60*1000; // 1시간 전
+      const delay = notifMs - Date.now();
+      if (delay <= 0) return;
+      setTimeout(()=>{
+        new Notification("⏰ 약속 1시간 전!", {
+          body: m.title,
+          icon: "/memoapp/icons/icon-192x192.png",
+        });
+      }, delay);
+    });
   }
   function doDelete(id) {
     const target = memos.find(x=>x.id===id);
@@ -293,7 +321,11 @@ function App() {
   }
 
   const filtered = memos
-    .filter(m=>!query.trim()||(m.title+m.content).includes(query))
+    .filter(m=>{
+      const qOk = !query.trim() || (m.title+m.content).includes(query);
+      const cOk = filterCat==="전체" || m.category===filterCat;
+      return qOk && cOk;
+    })
     .sort((a,b)=>b.date-a.date);
 
   // ── 공통 UI ──────────────────────────────────────────
@@ -382,22 +414,40 @@ function App() {
         </>}
       />
 
-      {/* 검색바 */}
+      {/* 검색바 + 카테고리 필터 */}
       {screen==="search" && (
-        <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,
-          padding:"10px 16px",flexShrink:0,display:"flex",gap:8,alignItems:"center"}}>
-          <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
-            onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
-            placeholder="검색어를 입력하세요..."
-            style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
-              borderRadius:10,padding:"10px 14px",color:c.text,fontFamily:ff,outline:"none"}}/>
-          <button
-            onClick={()=>{ document.activeElement?.blur(); }}
-            style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
-              padding:"10px 16px",cursor:"pointer",fontFamily:ff,fontWeight:700,
-              fontSize:14,flexShrink:0,whiteSpace:"nowrap"}}>
-            검색
-          </button>
+        <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,flexShrink:0}}>
+          <div style={{padding:"10px 16px",display:"flex",gap:8,alignItems:"center"}}>
+            <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
+              placeholder="검색어를 입력하세요..."
+              style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
+                borderRadius:10,padding:"10px 14px",color:c.text,fontFamily:ff,outline:"none"}}/>
+            <button onClick={()=>document.activeElement?.blur()}
+              style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
+                padding:"10px 16px",cursor:"pointer",fontFamily:ff,fontWeight:700,
+                fontSize:14,flexShrink:0}}>검색</button>
+          </div>
+          <div style={{display:"flex",gap:6,padding:"0 16px 10px",overflowX:"auto"}}>
+            {["전체",...cats].map(cat=>{
+              const mt = cat==="전체" ? null : CAT_META[cat];
+              const cl = mt?.color || c.accent;
+              const active = filterCat===cat;
+              return (
+                <button key={cat} onClick={()=>setFilterCat(cat)}
+                  style={{
+                    background: active ? (cat==="전체" ? c.accent : cl) : c.surface2,
+                    color: active ? "#fff" : c.muted,
+                    border: `1.5px solid ${active?(cat==="전체"?c.accent:cl):c.border}`,
+                    borderRadius:20, padding:"6px 14px", cursor:"pointer",
+                    fontFamily:ff, fontSize:13, fontWeight:active?700:400,
+                    flexShrink:0, whiteSpace:"nowrap",
+                  }}>
+                  {cat==="전체" ? "전체" : `${mt?.icon||""} ${cat}`}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -536,6 +586,40 @@ function App() {
               <div style={{marginBottom:16}}><WBadge/></div>
             )}
 
+            {/* 약속: 날짜/시간 입력 */}
+            {wCat==="약속" && (
+              <div style={{marginBottom:16,padding:"12px 14px",
+                background:isDark?"rgba(167,139,250,0.1)":"#f3f0ff",
+                borderRadius:12,border:`1px solid ${isDark?"rgba(167,139,250,0.3)":"#c4b5fd"}`}}>
+                <div style={{fontSize:13,color:"#a78bfa",fontWeight:700,marginBottom:10}}>
+                  📅 약속 일시
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <input
+                    type="date"
+                    value={wApptDate}
+                    onChange={e=>setWApptDate(e.target.value)}
+                    autoComplete="off"
+                    style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
+                      borderRadius:8,padding:"9px 10px",color:c.text,fontFamily:ff,
+                      fontSize:"16px",outline:"none"}}
+                  />
+                  <input
+                    type="time"
+                    value={wApptTime}
+                    onChange={e=>setWApptTime(e.target.value)}
+                    autoComplete="off"
+                    style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
+                      borderRadius:8,padding:"9px 10px",color:c.text,fontFamily:ff,
+                      fontSize:"16px",outline:"none"}}
+                  />
+                </div>
+                <div style={{fontSize:11,color:c.muted,marginTop:8}}>
+                  ⏰ 설정한 시간 1시간 전에 알림을 드려요
+                </div>
+              </div>
+            )}
+
             {/* ★ 제목 입력 - 키보드 튕김 방지 핵심 ★
                 autoComplete/autoCorrect/autoCapitalize 모두 off
                 font-size 반드시 16px 이상 */}
@@ -558,10 +642,15 @@ function App() {
               }}
             />
 
-            {/* ★ 내용 입력 ★ */}
+            {/* ★ 내용 입력 - 자동 높이 확장 ★ */}
             <textarea
               value={wContent}
-              onChange={e=>setWContent(e.target.value)}
+              onChange={e=>{
+                setWContent(e.target.value);
+                // 자동 높이 확장
+                e.target.style.height = "auto";
+                e.target.style.height = e.target.scrollHeight + "px";
+              }}
               placeholder="내용을 입력하세요..."
               autoComplete="off"
               autoCorrect="off"
@@ -573,26 +662,48 @@ function App() {
                 resize:"none", fontFamily:ff,
                 fontSize:"16px", lineHeight:1.9,
                 color:c.text, outline:"none",
-                minHeight:260,
+                minHeight:200, overflow:"hidden",
               }}
-              rows={12}
             />
 
-            {/* 사진 */}
+            {/* 사진 - 내용 바로 아래 가로 전체 너비 */}
             {wImages.length>0 && (
-              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
                 {wImages.map((img,i)=>(
-                  <div key={i} style={{position:"relative"}}>
+                  <div key={i} style={{position:"relative",width:"100%"}}>
                     <img src={img} alt=""
-                      style={{width:90,height:90,objectFit:"cover",
-                        borderRadius:10,border:`1.5px solid ${c.border}`}}/>
+                      style={{
+                        width:"100%", height:"auto",
+                        maxHeight:360, objectFit:"cover",
+                        borderRadius:14,
+                        border:`1.5px solid ${c.border}`,
+                        display:"block",
+                      }}/>
                     <button onClick={()=>setWImages(p=>p.filter((_,j)=>j!==i))}
-                      style={{position:"absolute",top:-6,right:-6,
-                        background:c.danger,color:"#fff",border:"none",
-                        borderRadius:"50%",width:22,height:22,cursor:"pointer",
-                        fontSize:15,lineHeight:"22px",textAlign:"center"}}>×</button>
+                      style={{
+                        position:"absolute", top:8, right:8,
+                        background:"rgba(0,0,0,0.55)", color:"#fff",
+                        border:"none", borderRadius:"50%",
+                        width:30, height:30, cursor:"pointer",
+                        fontSize:18, lineHeight:"30px", textAlign:"center",
+                        fontWeight:700,
+                      }}>×</button>
                   </div>
                 ))}
+                {/* 사진 추가 버튼 */}
+                <button onClick={()=>fileRef.current?.click()}
+                  style={{
+                    width:"100%", padding:"14px",
+                    background:c.surface2,
+                    border:`2px dashed ${c.border}`,
+                    borderRadius:14, cursor:"pointer",
+                    display:"flex", alignItems:"center",
+                    justifyContent:"center", gap:8,
+                    color:c.muted, fontFamily:ff, fontSize:14,
+                  }}>
+                  <span style={{fontSize:20}}>📷</span>
+                  <span>사진 추가</span>
+                </button>
               </div>
             )}
           </div>
