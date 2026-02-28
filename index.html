@@ -44,12 +44,13 @@
   </script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-    html,body{height:100%;overflow:hidden;background:#0f1117}
-    #root{height:100%;overflow:hidden}
+    html{height:100%;height:-webkit-fill-available;}
+    body{height:100%;height:-webkit-fill-available;overflow:hidden;background:#0f1117;position:fixed;width:100%;}
+    #root{height:100%;overflow:hidden;display:flex;flex-direction:column;}
     ::-webkit-scrollbar{width:3px}
     ::-webkit-scrollbar-thumb{background:#2d3154;border-radius:2px}
     textarea{-webkit-overflow-scrolling:touch}
-    input,textarea,select{-webkit-appearance:none}
+    input,textarea,select{-webkit-appearance:none;font-size:16px !important;}
   </style>
 </head>
 <body>
@@ -335,7 +336,7 @@ function App(){
   };
 
   const Wrap=({children})=>(
-    <div style={{...fs,background:c.bg,minHeight:"100dvh",maxWidth:480,margin:"0 auto",
+    <div style={{...fs,background:c.bg,height:"100%",maxWidth:480,margin:"0 auto",
       color:c.text,display:"flex",flexDirection:"column"}}>
       {children}
       <div style={{textAlign:"center",fontSize:11,color:c.muted,
@@ -377,7 +378,7 @@ function App(){
             <div style={{fontSize:14}}>아직 메모가 없어요<br/>첫 메모를 작성해보세요!</div>
           </div>
         ):(
-          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          <div style={{display:"flex",flexDirection:"column",overflow:"hidden",gap:9}}>
             {filtered.map(m=>{
               const mt=CAT_META[m.category];
               const cl=mt?.color||"#94a3b8";
@@ -453,7 +454,7 @@ function App(){
           center={<span>{mt?.icon||"🗂️"} {wCat}</span>}
           right={editMemo&&<IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
         />
-        <div style={{flex:1,overflowY:"auto",padding:"16px 16px 130px"}}>
+        <div style={{flex:1,overflowY:"auto",padding:"16px 16px 20px"}}>
           <div style={{fontSize:13,color:c.muted,marginBottom:10,fontWeight:500}}>
             {fmtDate(selDate||new Date())}
           </div>
@@ -484,10 +485,11 @@ function App(){
             </div>
           )}
         </div>
-        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",
-          width:"100%",maxWidth:480,background:c.surface,borderTop:`1px solid ${c.border}`,
+        <div style={{position:"sticky",bottom:0,
+          width:"100%",background:c.surface,borderTop:`1px solid ${c.border}`,
           padding:`12px 14px calc(12px + env(safe-area-inset-bottom))`,
-          display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",zIndex:50}}>
+          display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",
+          flexShrink:0,zIndex:50}}>
           {editMemo&&<button onClick={()=>doShare(editMemo)}
             style={{background:"#FEE500",color:"#3C1E1E",border:"none",borderRadius:10,
               padding:"9px 12px",cursor:"pointer",...fs,fontWeight:700,fontSize:13,marginRight:"auto"}}>
@@ -613,6 +615,13 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+
+// 키보드 올라올때 뷰포트 대응 (Android Chrome PWA)
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',()=>{
+    document.getElementById('root').style.height = window.visualViewport.height + 'px';
+  });
+}
 
 // Service Worker 등록
 if("serviceWorker"in navigator){
