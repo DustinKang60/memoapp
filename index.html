@@ -44,13 +44,12 @@
   </script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-    html{height:100%;height:-webkit-fill-available;}
-    body{height:100%;height:-webkit-fill-available;overflow:hidden;background:#0f1117;position:fixed;width:100%;}
-    #root{height:100%;overflow:hidden;display:flex;flex-direction:column;}
+    html,body{width:100%;height:100%;overflow:hidden;background:#0f1117;}
+    #root{width:100%;height:100%;overflow:hidden;}
     ::-webkit-scrollbar{width:3px}
     ::-webkit-scrollbar-thumb{background:#2d3154;border-radius:2px}
-    textarea{-webkit-overflow-scrolling:touch}
-    input,textarea,select{-webkit-appearance:none;font-size:16px !important;}
+    /* 핵심: 16px 미만이면 안드로이드가 자동줌 → 키보드 튕김 */
+    input,textarea,select{-webkit-appearance:none;font-size:16px !important;transform:translateZ(0);}
   </style>
 </head>
 <body>
@@ -230,9 +229,7 @@ function App(){
 
   useEffect(()=>{saveSettings({isDark,font,fontSize:fSize,categories:cats})},[isDark,font,fSize,cats]);
   useEffect(()=>{saveMemos(memos)},[memos]);
-  useEffect(()=>{
-    if(screen==="write"&&wCat==="일기"&&!weather&&!wLoad)fetchWeather();
-  },[screen,wCat]);
+  // 날씨는 자동호출 안함 - 버튼 클릭시에만 호출 (자동호출시 리렌더로 키보드 튕김)
 
   const c={
     bg:isDark?"#0f1117":"#f4f7ff",
@@ -249,7 +246,6 @@ function App(){
     setWCat(cat);setWTitle("");setWContent("");setWImages([]);
     setSelDate(date||new Date());setEditMemo(null);
     setScreen("write");setShowCatPop(false);
-    setTimeout(()=>titleRef.current?.focus(),150);
   }
   function editM(memo){
     setEditMemo(memo);setWCat(memo.category);setWTitle(memo.title);
@@ -336,7 +332,7 @@ function App(){
   };
 
   const Wrap=({children})=>(
-    <div style={{...fs,background:c.bg,height:"100%",maxWidth:480,margin:"0 auto",
+    <div style={{...fs,background:c.bg,width:"100%",maxWidth:480,margin:"0 auto",
       color:c.text,display:"flex",flexDirection:"column"}}>
       {children}
       <div style={{textAlign:"center",fontSize:11,color:c.muted,
@@ -446,29 +442,64 @@ function App(){
   if(screen==="write"){
     const mt=CAT_META[wCat];const cl=mt?.color||"#94a3b8";
     const isDiary=wCat==="일기";
+    // 핵심: 전체를 일반 스크롤 페이지로 만들고
+    // 하단버튼은 스크롤 안에 포함 (fixed/sticky 완전 제거)
     return(
-      <Wrap>
-        <Header
-          left={<button onClick={()=>setScreen("main")}
-            style={{background:"none",border:"none",color:c.accent,cursor:"pointer",...fs,fontSize:14}}>‹ 뒤로</button>}
-          center={<span>{mt?.icon||"🗂️"} {wCat}</span>}
-          right={editMemo&&<IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
-        />
-        <div style={{flex:1,overflowY:"auto",padding:"16px 16px 20px"}}>
+      <div style={{
+        ...fs,background:c.bg,color:c.text,
+        minHeight:"100%",display:"flex",flexDirection:"column",
+        maxWidth:480,margin:"0 auto",
+      }}>
+        {/* 헤더 */}
+        <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,
+          padding:"12px 16px",display:"flex",alignItems:"center",
+          justifyContent:"space-between",flexShrink:0}}>
+          <button onClick={()=>setScreen("main")}
+            style={{background:"none",border:"none",color:c.accent,
+              cursor:"pointer",...fs,fontSize:15,padding:"4px 0",minWidth:60}}>‹ 뒤로</button>
+          <span style={{fontWeight:700,fontSize:15,color:c.text}}>{mt?.icon||"🗂️"} {wCat}</span>
+          <div style={{minWidth:60,display:"flex",justifyContent:"flex-end"}}>
+            {editMemo&&<IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
+          </div>
+        </div>
+
+        {/* 스크롤 컨텐츠 - 버튼까지 전부 포함 */}
+        <div style={{flex:1,overflowY:"auto",padding:"16px 16px 0"}}>
+          {/* 날짜 */}
           <div style={{fontSize:13,color:c.muted,marginBottom:10,fontWeight:500}}>
             {fmtDate(selDate||new Date())}
           </div>
+
+          {/* 일기: 날씨 */}
           {isDiary&&<div style={{marginBottom:16}}><WBadge/></div>}
-          <input ref={titleRef} value={wTitle} onChange={e=>setWTitle(e.target.value)}
+
+          {/* 제목 입력 */}
+          <input
+            value={wTitle}
+            onChange={e=>setWTitle(e.target.value)}
             placeholder="제목을 입력하세요"
-            style={{width:"100%",background:"transparent",border:"none",
-              borderBottom:`2px solid ${cl}`,padding:"8px 2px",...fs,
-              fontSize:19,fontWeight:700,color:c.text,outline:"none",marginBottom:16}}/>
-          <textarea value={wContent} onChange={e=>setWContent(e.target.value)}
+            style={{
+              display:"block",width:"100%",background:"transparent",border:"none",
+              borderBottom:`2px solid ${cl}`,padding:"8px 0",
+              fontFamily:`'${font}',sans-serif`,fontSize:"18px",
+              fontWeight:700,color:c.text,outline:"none",marginBottom:20,
+            }}
+          />
+
+          {/* 내용 입력 */}
+          <textarea
+            value={wContent}
+            onChange={e=>setWContent(e.target.value)}
             placeholder="내용을 입력하세요..."
-            style={{width:"100%",background:"transparent",border:"none",
-              resize:"none",...fs,lineHeight:1.9,color:c.text,outline:"none",minHeight:240}}
-            rows={12}/>
+            style={{
+              display:"block",width:"100%",background:"transparent",border:"none",
+              resize:"none",fontFamily:`'${font}',sans-serif`,fontSize:"16px",
+              lineHeight:1.9,color:c.text,outline:"none",minHeight:220,
+            }}
+            rows={10}
+          />
+
+          {/* 업로드 이미지 */}
           {wImages.length>0&&(
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:12}}>
               {wImages.map((img,i)=>(
@@ -477,29 +508,35 @@ function App(){
                     borderRadius:10,border:`1.5px solid ${c.border}`}}/>
                   <button onClick={()=>setWImages(p=>p.filter((_,j)=>j!==i))}
                     style={{position:"absolute",top:-6,right:-6,background:c.danger,
-                      color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,
-                      cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",
-                      justifyContent:"center",lineHeight:1}}>×</button>
+                      color:"#fff",border:"none",borderRadius:"50%",width:22,height:22,
+                      cursor:"pointer",fontSize:14,lineHeight:"22px",textAlign:"center"}}>×</button>
                 </div>
               ))}
             </div>
           )}
+
+          {/* 하단 버튼 - fixed/sticky 완전 제거, 스크롤 안에 포함 */}
+          <div style={{
+            marginTop:24,paddingBottom:"calc(24px + env(safe-area-inset-bottom))",
+            borderTop:`1px solid ${c.border}`,paddingTop:12,
+            display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",
+          }}>
+            {editMemo&&(
+              <button onClick={()=>doShare(editMemo)}
+                style={{background:"#FEE500",color:"#3C1E1E",border:"none",borderRadius:10,
+                  padding:"10px 12px",cursor:"pointer",fontFamily:`'${font}',sans-serif`,
+                  fontWeight:700,fontSize:14,marginRight:"auto"}}>💬 공유</button>
+            )}
+            <GBtn ch="취소" onClick={()=>setScreen("main")}/>
+            <GBtn ch="📷" onClick={()=>fileRef.current?.click()}/>
+            <input ref={fileRef} type="file" accept="image/*" multiple onChange={onImg} style={{display:"none"}}/>
+            <PBtn ch="저장" onClick={doSave}/>
+          </div>
+
+          {/* 브랜드 */}
+          <div style={{textAlign:"center",fontSize:11,color:c.muted,paddingBottom:16}}>작은앱공방</div>
         </div>
-        <div style={{position:"sticky",bottom:0,
-          width:"100%",background:c.surface,borderTop:`1px solid ${c.border}`,
-          padding:`12px 14px calc(12px + env(safe-area-inset-bottom))`,
-          display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",
-          flexShrink:0,zIndex:50}}>
-          {editMemo&&<button onClick={()=>doShare(editMemo)}
-            style={{background:"#FEE500",color:"#3C1E1E",border:"none",borderRadius:10,
-              padding:"9px 12px",cursor:"pointer",...fs,fontWeight:700,fontSize:13,marginRight:"auto"}}>
-            💬 공유</button>}
-          <GBtn ch="취소" onClick={()=>setScreen("main")}/>
-          <GBtn ch="📷 사진" onClick={()=>fileRef.current?.click()}/>
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={onImg} style={{display:"none"}}/>
-          <PBtn ch="저장" onClick={doSave}/>
-        </div>
-      </Wrap>
+      </div>
     );
   }
 
@@ -615,13 +652,6 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-
-// 키보드 올라올때 뷰포트 대응 (Android Chrome PWA)
-if(window.visualViewport){
-  window.visualViewport.addEventListener('resize',()=>{
-    document.getElementById('root').style.height = window.visualViewport.height + 'px';
-  });
-}
 
 // Service Worker 등록
 if("serviceWorker"in navigator){
