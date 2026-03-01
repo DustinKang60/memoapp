@@ -219,6 +219,8 @@ function App() {
   const [wApptDate,setWApptDate]= useState(""); // 약속 날짜
   const [wApptTime,setWApptTime]= useState(""); // 약속 시간
   const [newCat,   setNewCat]   = useState("");
+  const [longPressed, setLongPressed] = useState(null); // 롱프레스된 메모 id
+  const longPressTimer = useRef(null);
   const [filterCat,setFilterCat]= useState("전체"); // 검색 카테고리 필터
   const { weather, loading:wLoad, error:wErr, fetchWeather } = useWeather();
   const fileRef = useRef();
@@ -293,6 +295,16 @@ function App() {
     if (!window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)) return;
     setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
   }
+  // 롱프레스 핸들러
+  function onLongPressStart(id) {
+    longPressTimer.current = setTimeout(()=>{
+      setLongPressed(id);
+    }, 500);
+  }
+  function onLongPressEnd() {
+    clearTimeout(longPressTimer.current);
+  }
+
   function doShare(m) {
     const cat = CAT_META[m.category];
     const weatherLine = m.weather
@@ -478,10 +490,20 @@ function App() {
             {filtered.map(m=>{
               const mt=CAT_META[m.category], cl=mt?.color||"#94a3b8";
               return (
-                <div key={m.id} onClick={()=>openEdit(m)}
+                <div key={m.id}
+                  onClick={()=>{ if(longPressed===m.id) return; openEdit(m); }}
+                  onTouchStart={()=>onLongPressStart(m.id)}
+                  onTouchEnd={onLongPressEnd}
+                  onTouchMove={onLongPressEnd}
+                  onMouseDown={()=>onLongPressStart(m.id)}
+                  onMouseUp={onLongPressEnd}
+                  onMouseLeave={onLongPressEnd}
                   style={{background:c.surface,border:`1px solid ${c.border}`,
                     borderRadius:14,padding:"13px 14px",cursor:"pointer",
-                    borderLeft:`4px solid ${cl}`}}>
+                    borderLeft:`4px solid ${cl}`,
+                    opacity: longPressed && longPressed!==m.id ? 0.4 : 1,
+                    transition:"opacity 0.2s",
+                  }}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <span style={{fontSize:10,fontWeight:700,color:cl,
@@ -510,6 +532,62 @@ function App() {
 
         <div style={{textAlign:"center",fontSize:11,color:c.muted,padding:"24px 0 8px"}}>작은앱공방 · 강종훈</div>
       </div>
+
+      {/* 롱프레스 팝업 */}
+      {longPressed && (()=>{
+        const m = memos.find(x=>x.id===longPressed);
+        if (!m) return null;
+        const mt = CAT_META[m.category];
+        const cl = mt?.color || "#94a3b8";
+        return (
+          <div onClick={()=>setLongPressed(null)}
+            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",
+              zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:c.surface,borderRadius:"20px 20px 0 0",
+                padding:"20px 20px 36px",width:"100%",maxWidth:480}}>
+              <div style={{width:36,height:4,background:c.border,borderRadius:2,margin:"0 auto 16px"}}/>
+              {/* 선택된 메모 제목 */}
+              <div style={{
+                fontSize:13, color:c.muted, marginBottom:4, fontFamily:ff,
+                display:"flex", alignItems:"center", gap:6,
+              }}>
+                <span style={{color:cl}}>{mt?.icon||"🗂️"} {m.category}</span>
+              </div>
+              <div style={{
+                fontSize:16, fontWeight:700, color:c.text,
+                fontFamily:ff, marginBottom:20,
+                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+              }}>{m.title}</div>
+              {/* 버튼 */}
+              <div style={{display:"flex", gap:10}}>
+                <button onClick={()=>{ setLongPressed(null); doShare(m); }}
+                  style={{flex:1, background:"#FEE500", color:"#3C1E1E",
+                    border:"none", borderRadius:14, padding:"14px",
+                    cursor:"pointer", fontFamily:ff, fontWeight:700,
+                    fontSize:16, display:"flex", alignItems:"center",
+                    justifyContent:"center", gap:8}}>
+                  <span>💬</span> 공유
+                </button>
+                <button onClick={()=>{
+                    setLongPressed(null);
+                    const title = m?.title || "(제목 없음)";
+                    if(window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)){
+                      setMemos(p=>p.filter(x=>x.id!==m.id));
+                    }
+                  }}
+                  style={{flex:1, background:"rgba(239,68,68,0.12)", color:c.danger,
+                    border:`1.5px solid ${c.danger}`, borderRadius:14, padding:"14px",
+                    cursor:"pointer", fontFamily:ff, fontWeight:700,
+                    fontSize:16, display:"flex", alignItems:"center",
+                    justifyContent:"center", gap:8}}>
+                  <span>🗑️</span> 삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 카테고리 팝업 */}
       {catPop && (
