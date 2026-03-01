@@ -309,7 +309,7 @@ function App() {
       m.content,
       "- 작은앱공방 메모장",
     ].filter(Boolean).join("\n\n");
-    if (navigator.share) navigator.share({title:m.title, text:txt});
+    if (navigator.share) navigator.share({title:"", text:txt});
     else { navigator.clipboard?.writeText(txt); alert("클립보드에 복사됐어요!"); }
   }
   function onImg(e) {
