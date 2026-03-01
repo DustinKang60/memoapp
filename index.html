@@ -294,7 +294,21 @@ function App() {
     setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
   }
   function doShare(m) {
-    const txt = `[${m.category}] ${m.title}\n${m.content}\n\n${fmtDate(m.date)}\n\n- 작은앱공방 메모장`;
+    const cat = CAT_META[m.category];
+    const weatherLine = m.weather
+      ? `\n날씨: ${m.weather.icon} ${m.weather.label} ${m.weather.tmin}°~${m.weather.tmax}°C`
+      : "";
+    const apptLine = (m.apptDate && m.apptTime)
+      ? `\n약속일시: ${m.apptDate} ${m.apptTime}`
+      : "";
+    const txt = [
+      fmtDate(m.date),
+      `[${cat?.icon||""}${m.category}] ${m.title}`,
+      weatherLine ? weatherLine.trim() : null,
+      apptLine ? apptLine.trim() : null,
+      m.content,
+      "- 작은앱공방 메모장",
+    ].filter(Boolean).join("\n\n");
     if (navigator.share) navigator.share({title:m.title, text:txt});
     else { navigator.clipboard?.writeText(txt); alert("클립보드에 복사됐어요!"); }
   }
