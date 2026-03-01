@@ -307,7 +307,7 @@ function App() {
       weatherLine ? weatherLine.trim() : null,
       apptLine ? apptLine.trim() : null,
       m.content,
-      "- 작은앱공방 메모장",
+      "- 작은앱공방 · 강종훈",
     ].filter(Boolean).join("\n\n");
     if (navigator.share) navigator.share({title:"", text:txt});
     else { navigator.clipboard?.writeText(txt); alert("클립보드에 복사됐어요!"); }
@@ -508,7 +508,7 @@ function App() {
           </div>
         )}
 
-        <div style={{textAlign:"center",fontSize:11,color:c.muted,padding:"24px 0 8px"}}>작은앱공방</div>
+        <div style={{textAlign:"center",fontSize:11,color:c.muted,padding:"24px 0 8px"}}>작은앱공방 · 강종훈</div>
       </div>
 
       {/* 카테고리 팝업 */}
