@@ -364,9 +364,6 @@ function App() {
     return () => clearInterval(t);
   }, []);
 
-  // 화면 전환 시 showCount 리셋
-  useEffect(() => { setShowCount(20); }, [screen]);
-
   function doDelete(id) {
     const target = memos.find(x=>x.id===id);
     const title = target?.title || "(제목 없음)";
@@ -444,8 +441,9 @@ function App() {
     .sort((a,b)=>b.date-a.date);
 
   const PAGE_SIZE = 20;
+  // 검색화면은 전체 표시, 메인화면은 showCount만큼
   const visibleMemos = screen === "search" ? filtered : filtered.slice(0, showCount);
-  const hasMore = screen !== "search" && filtered.length > showCount;
+  const hasMore = screen === "main" && filtered.length > showCount;
 
   // ── 공통 UI ──────────────────────────────────────────
   const TopBar = ({left,title,right}) => (
@@ -677,7 +675,7 @@ function App() {
             </button>
           </div>
         )}
-        {!hasMore && filtered.length > PAGE_SIZE && screen!=="search" && (
+        {!hasMore && filtered.length > PAGE_SIZE && screen==="main" && (
           <div style={{textAlign:"center",padding:"4px 0"}}>
             <button
               onClick={()=>setShowCount(PAGE_SIZE)}
@@ -810,6 +808,7 @@ function App() {
           flex:1,
           minHeight:0,
           overflowY:"auto",
+          overflowX:"hidden",
           WebkitOverflowScrolling:"touch",
           overscrollBehavior:"contain",
         }}>
@@ -920,7 +919,7 @@ function App() {
                 resize:"none", fontFamily:ff,
                 fontSize:"16px", lineHeight:1.9,
                 color:c.text, outline:"none",
-                overflow:"visible",
+                overflow:"hidden",
               }}
             />
 
