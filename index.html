@@ -22,8 +22,8 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; background: #0f1117; }
-    body { height: 100%; background: #0f1117; font-family: 'Noto Sans KR', sans-serif; }
-    #root { height: 100%; }
+    body { height: 100%; background: #0f1117; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
+    #root { height: 100%; display: flex; flex-direction: column; }
     input, textarea, select {
       -webkit-appearance: none;
       font-size: 16px;
@@ -421,7 +421,7 @@ function App() {
   // ════════════════════════════════════════════════════
   if (screen==="main" || screen==="search") return (
     <div style={{fontFamily:ff,background:c.bg,color:c.text,
-      width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      width:"100%",height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
       <TopBar
         // ── [수정1] 검색 상태일 때 왼쪽에 뒤로가기 아이콘 표시 ──
@@ -490,7 +490,7 @@ function App() {
       )}
 
       {/* 스크롤 영역 */}
-      <div style={{flex:1,overflowY:"auto",padding:"14px"}}>
+      <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"14px"}}>
         {screen!=="search" && (
           <Calendar memos={memos} c={c} font={font}
             onDateClick={d=>{ setSelDate(d); setCatPop(true); }}/>
@@ -657,8 +657,10 @@ function App() {
     return (
       <div style={{
         fontFamily:ff, background:c.bg, color:c.text,
-        width:"100%", height:"100%",
+        width:"100%",
+        height:"100dvh",
         display:"flex", flexDirection:"column",
+        overflow:"hidden",
       }}>
 
         <TopBar
@@ -673,12 +675,12 @@ function App() {
           right={editMemo && <IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
         />
 
-        {/* ── [수정2] 스크롤 영역: flex:1 + overflowY:auto + WebkitOverflowScrolling:touch ── */}
+        {/* 스크롤 영역: minHeight:0 이 핵심 - flex child가 수축 가능해야 스크롤됨 */}
         <div style={{
           flex:1,
+          minHeight:0,
           overflowY:"auto",
           WebkitOverflowScrolling:"touch",
-          // 안드로이드 PWA에서 스크롤 막히는 문제 해결
           overscrollBehavior:"contain",
         }}>
           <div style={{padding:"16px 16px 0"}}>
@@ -772,26 +774,23 @@ function App() {
               }}
             />
 
-            {/* 내용 입력 */}
+            {/* 내용 입력 - rows로 높이 제어, overflow:visible로 부모 스크롤 보장 */}
             <textarea
               value={wContent}
-              onChange={e=>{
-                setWContent(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = e.target.scrollHeight + "px";
-              }}
+              onChange={e=>setWContent(e.target.value)}
               placeholder="내용을 입력하세요..."
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck="false"
+              rows={Math.max(10, wContent.split("\n").length + 3)}
               style={{
                 display:"block", width:"100%",
                 background:"transparent", border:"none",
                 resize:"none", fontFamily:ff,
                 fontSize:"16px", lineHeight:1.9,
                 color:c.text, outline:"none",
-                minHeight:200, overflow:"hidden",
+                overflow:"visible",
               }}
             />
 
@@ -895,7 +894,7 @@ function App() {
     );
     return (
       <div style={{fontFamily:ff,background:c.bg,color:c.text,
-        width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        width:"100%",height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar
           left={
             <button onClick={()=>setScreen("main")}
@@ -907,7 +906,7 @@ function App() {
           title="설정"
           right={null}
         />
-        <div style={{flex:1,overflowY:"auto",padding:"4px 16px 40px"}}>
+        <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"4px 16px 40px"}}>
           <Sec t="테마"/>
           <Row icon="🌙" label="다크 모드" right={<Toggle val={isDark} onChange={setIsDark}/>}/>
 
