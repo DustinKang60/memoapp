@@ -19,21 +19,7 @@
     document.head.appendChild(al);
   </script>
   <link rel="manifest" href="/memoapp/manifest.json"/>
-  <!-- Firebase SDK (CDN) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBC5y1B592zfv2ROD7HifmdujH-SUkJSFk",
-      authDomain: "baby-diary-9f808.firebaseapp.com",
-      projectId: "baby-diary-9f808",
-      storageBucket: "baby-diary-9f808.firebasestorage.app",
-      messagingSenderId: "1037211823707",
-      appId: "1:1037211823707:web:a4e974c58d9df3c92c597e",
-    };
-    firebase.initializeApp(firebaseConfig);
-    window._fbMessaging = firebase.messaging();
-  </script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; background: #0f1117; }
@@ -296,63 +282,16 @@ function App() {
     setScreen("main");
   }
 
-  // ── FCM 토큰 등록 및 약속 알림 스케줄 ──
-  // FCM을 사용하면 앱이 완전히 꺼진 상태에서도 Firebase 서버가 알림을 발송
-  const FCM_VAPID = "BFqELPo9ckLvMIOqkrXmdkwAH6CE4qn6E3kJZLw9ijU5tLRWeogij5vnxwl2b8p8Nz3E7V48SVx6tBxOh881Z_4";
-  const FCM_TOKEN_KEY = "memoapp_fcm_token";
-
-  // FCM 토큰 취득 (최초 1회 + 앱 시작 시)
-  async function getFCMToken() {
-    try {
-      const messaging = window._fbMessaging;
-      if (!messaging) return null;
-      const reg = await navigator.serviceWorker.getRegistration("/memoapp/");
-      if (!reg) return null;
-      const token = await messaging.getToken({
-        vapidKey: FCM_VAPID,
-        serviceWorkerRegistration: reg,
-      });
-      if (token) {
-        localStorage.setItem(FCM_TOKEN_KEY, token);
-        return token;
-      }
-    } catch(e) {
-      console.log("FCM 토큰 오류:", e);
-    }
-    return null;
-  }
-
-  // 앱 시작 시 FCM 토큰 등록 + 포그라운드 메시지 수신
-  useEffect(() => {
-    const messaging = window._fbMessaging;
-    if (!messaging) return;
-
-    // 포그라운드 메시지 수신 (앱 열려있을 때)
-    messaging.onMessage(payload => {
-      const { title, body } = payload.notification || payload.data || {};
-      if (title && Notification.permission === "granted") {
-        new Notification(title, {
-          body,
-          icon: "/memoapp/icons/icon-192x192.png",
-          vibrate: [200, 100, 200],
-        });
-      }
-    });
-
-    // 알림 권한이 이미 허용된 경우 토큰 갱신
-    if (Notification.permission === "granted") {
-      getFCMToken();
-    }
-  }, []);
-
+  // ── 약속 알림 스케줄 ──
+  // 구조: localStorage 저장 + SW postMessage (백그라운드 동작)
+  //       앱 완전 종료 시에는 동작 안 함 (서버 없이는 불가)
   function scheduleApptNotif(m) {
     if (!("Notification" in window)) return;
-    Notification.requestPermission().then(async perm => {
+    Notification.requestPermission().then(perm => {
       if (perm !== "granted") {
         alert("알림 권한이 거부되었습니다.\n기기 설정에서 이 앱의 알림을 허용해주세요.");
         return;
       }
-
       const apptMs = new Date(`${m.apptDate}T${m.apptTime}`).getTime();
       const reminderMin = m.reminder ?? 60;
       const notifMs = apptMs - reminderMin * 60 * 1000;
@@ -364,10 +303,7 @@ function App() {
         return;
       }
 
-      // FCM 토큰 취득
-      const token = await getFCMToken();
-
-      // localStorage에 알림 저장 (FCM + 폴링 이중 보장)
+      // localStorage에 저장
       const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
       const rest = stored.filter(n => n.id !== m.id);
       rest.push({
@@ -375,36 +311,29 @@ function App() {
         title: `⏰ 약속 ${label}!`,
         body: m.title,
         notifTime: notifMs,
-        fcmToken: token || null,
       });
       localStorage.setItem("memoapp_notifs", JSON.stringify(rest));
 
-      // FCM Firestore에 알림 일정 등록 (앱 꺼져도 Firebase 서버가 발송)
-      if (token) {
-        try {
-          await fetch("https://us-central1-baby-diary-9f808.cloudfunctions.net/scheduleNotification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token,
-              title: `⏰ 약속 ${label}!`,
-              body: m.title,
-              sendAt: notifMs,
-              memoId: String(m.id),
-            }),
-          });
-          alert(`✅ 알림 설정 완료!\n${new Date(notifMs).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}에 알려드릴게요.\n(앱이 꺼져있어도 알림이 와요 📲)`);
-        } catch(e) {
-          // FCM 실패 시 로컬 폴링으로 폴백
-          alert(`✅ 알림 설정 완료!\n${new Date(notifMs).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}에 알려드릴게요.\n(앱을 열어두시면 더 확실해요)`);
-        }
-      } else {
-        alert(`✅ 알림 설정 완료!\n${new Date(notifMs).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}에 알려드릴게요.`);
+      // SW에 알림 등록 (백그라운드에서도 동작)
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SCHEDULE_NOTIFICATION",
+          id: m.id,
+          title: `⏰ 약속 ${label}!`,
+          body: m.title,
+          notifTime: notifMs,
+        });
       }
+
+      const timeStr = new Date(notifMs).toLocaleString("ko-KR", {
+        month: "numeric", day: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+      alert(`✅ 알림 설정 완료!\n${timeStr}에 알려드릴게요.\n(앱을 완전히 닫지 않으면 백그라운드에서도 알림이 와요 📲)`);
     });
   }
 
-  // 앱 열려있을 때 폴링 백업 (1분마다)
+  // 앱 열려있을 때 1분마다 폴링 체크 (백업)
   useEffect(() => {
     const check = () => {
       const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
@@ -412,7 +341,11 @@ function App() {
       const remaining = [];
       stored.forEach(n => {
         if (now >= n.notifTime && now < n.notifTime + 120000) {
-          if (Notification.permission === "granted") {
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SHOW_NOW", title: n.title, body: n.body,
+            });
+          } else if (Notification.permission === "granted") {
             new Notification(n.title, {
               body: n.body,
               icon: "/memoapp/icons/icon-192x192.png",
@@ -437,12 +370,10 @@ function App() {
     // localStorage 알림 취소
     const stored = JSON.parse(localStorage.getItem("memoapp_notifs")||"[]");
     localStorage.setItem("memoapp_notifs", JSON.stringify(stored.filter(n=>n.id!==id)));
-    // Firebase Firestore 알림 예약 취소
-    fetch("https://us-central1-baby-diary-9f808.cloudfunctions.net/cancelNotification", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memoId: String(id) }),
-    }).catch(() => {});
+    // SW 알림 예약 취소
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "CANCEL_NOTIFICATION", id });
+    }
     setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
   }
   function onLongPressStart(id) {
@@ -1143,17 +1074,10 @@ function App() {
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      // 메모앱 SW 등록
-      await navigator.serviceWorker.register("/memoapp/sw.js");
-      console.log("SW 등록 완료");
-      // FCM 전용 SW 등록 (Firebase가 요구하는 고정 경로)
-      await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-      console.log("FCM SW 등록 완료");
-    } catch(e) {
-      console.log("SW 오류:", e);
-    }
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/memoapp/sw.js")
+      .then(r => console.log("SW 등록 완료:", r.scope))
+      .catch(e => console.log("SW 오류:", e));
   });
 }
 </script>
