@@ -32,6 +32,9 @@
     }
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-thumb { background: #2d3154; border-radius: 2px; }
+    /* 상세편집 화면 스크롤바 숨김 - 내용 치우침 방지 */
+    .write-scroll::-webkit-scrollbar { display: none; }
+    .write-scroll { scrollbar-width: none; -ms-overflow-style: none; }
     -webkit-tap-highlight-color: transparent;
   </style>
 </head>
@@ -804,7 +807,7 @@ function App() {
         />
 
         {/* 스크롤 영역: minHeight:0 이 핵심 - flex child가 수축 가능해야 스크롤됨 */}
-        <div style={{
+        <div className="write-scroll" style={{
           flex:1,
           minHeight:0,
           overflowY:"auto",
@@ -812,7 +815,7 @@ function App() {
           WebkitOverflowScrolling:"touch",
           overscrollBehavior:"contain",
         }}>
-          <div style={{padding:"16px 16px 0"}}>
+          <div style={{padding:"16px 20px 0"}}>
 
             {/* 날짜 */}
             <div style={{fontSize:13,color:c.muted,marginBottom:12,fontWeight:500}}>
