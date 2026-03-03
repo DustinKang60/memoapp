@@ -281,30 +281,101 @@ function App() {
     setScreen("main");
   }
 
-  // ── [수정3] 선택된 미리알림 분 만큼 전에 알림 ──
+  // ── 약속 알림 스케줄 ──
+  // 핵심: setTimeout은 앱이 백그라운드/종료 시 작동 안 함
+  // → localStorage에 알림 목록 저장 + SW postMessage로 처리
   function scheduleApptNotif(m) {
     if (!("Notification" in window)) return;
     Notification.requestPermission().then(perm => {
-      if (perm !== "granted") return;
+      if (perm !== "granted") {
+        alert("알림 권한이 거부되었습니다.\n기기 설정에서 이 앱의 알림을 허용해주세요.");
+        return;
+      }
       const apptMs = new Date(`${m.apptDate}T${m.apptTime}`).getTime();
       const reminderMin = m.reminder ?? 60;
       const notifMs = apptMs - reminderMin * 60 * 1000;
       const delay = notifMs - Date.now();
-      if (delay <= 0) return;
-      const opt = REMINDER_OPTIONS.find(o=>o.value===reminderMin);
-      setTimeout(()=>{
-        new Notification(`⏰ 약속 ${opt?.label || reminderMin+"분 전"}!`, {
+      const opt = REMINDER_OPTIONS.find(o => o.value === reminderMin);
+      const label = opt?.label || `${reminderMin}분 전`;
+
+      if (delay <= 0) {
+        alert(`⚠️ 설정한 미리알림 시간(${label})이 이미 지났어요.`);
+        return;
+      }
+
+      // 1) SW가 있으면 SW에 알림 등록 요청 (앱 종료 후에도 동작)
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SCHEDULE_NOTIFICATION",
+          id: m.id,
+          title: `⏰ ${label} 약속이 있어요!`,
           body: m.title,
-          icon: "/memoapp/icons/icon-192x192.png",
+          notifTime: notifMs,
         });
-      }, delay);
+        // SW가 받아서 처리하지만, 백업으로 localStorage에도 저장
+      }
+
+      // 2) localStorage에 알림 목록 저장 (앱이 열려있을 때 폴링으로 체크)
+      const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
+      // 같은 메모 중복 제거 후 추가
+      const filtered = stored.filter(n => n.id !== m.id);
+      filtered.push({
+        id: m.id,
+        title: `⏰ ${label} 약속이 있어요!`,
+        body: m.title,
+        notifTime: notifMs,
+      });
+      localStorage.setItem("memoapp_notifs", JSON.stringify(filtered));
+
+      alert(`✅ 알림 설정 완료!\n약속 ${label}인 ${new Date(notifMs).toLocaleString("ko-KR", {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}에 알려드릴게요.`);
     });
   }
+
+  // 앱이 열려있을 때 알림 폴링 (1분마다 체크)
+  useEffect(() => {
+    const checkNotifs = () => {
+      const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
+      const now = Date.now();
+      const remaining = [];
+      stored.forEach(n => {
+        if (now >= n.notifTime && now < n.notifTime + 120000) { // 2분 window
+          // SW showNotification 시도
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SHOW_NOW",
+              title: n.title,
+              body: n.body,
+            });
+          } else if ("Notification" in window && Notification.permission === "granted") {
+            new Notification(n.title, {
+              body: n.body,
+              icon: "/memoapp/icons/icon-192x192.png",
+              vibrate: [200, 100, 200],
+            });
+          }
+          // 발송된 알림은 제거
+        } else if (now < n.notifTime) {
+          remaining.push(n); // 아직 안 된 것만 유지
+        }
+      });
+      localStorage.setItem("memoapp_notifs", JSON.stringify(remaining));
+    };
+
+    checkNotifs(); // 즉시 한번 체크
+    const timer = setInterval(checkNotifs, 60000); // 1분마다
+    return () => clearInterval(timer);
+  }, []);
 
   function doDelete(id) {
     const target = memos.find(x=>x.id===id);
     const title = target?.title || "(제목 없음)";
     if (!window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)) return;
+    // 약속 알림 취소
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type:"CANCEL_NOTIFICATION", id });
+    }
+    const stored = JSON.parse(localStorage.getItem("memoapp_notifs")||"[]");
+    localStorage.setItem("memoapp_notifs", JSON.stringify(stored.filter(n=>n.id!==id)));
     setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
   }
   function onLongPressStart(id) {
