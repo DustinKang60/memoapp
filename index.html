@@ -439,6 +439,14 @@ function App() {
     })
     .sort((a,b)=>b.date-a.date);
 
+  // 메인화면 표시 개수 (검색화면은 전체 표시)
+  const PAGE_SIZE = 20;
+  const [showCount, setShowCount] = useState(PAGE_SIZE);
+  // screen이 바뀔 때(검색→메인 등) showCount 리셋
+  useEffect(() => { setShowCount(PAGE_SIZE); }, [screen]);
+  const visibleMemos = screen === "search" ? filtered : filtered.slice(0, showCount);
+  const hasMore = screen !== "search" && filtered.length > showCount;
+
   // ── 공통 UI ──────────────────────────────────────────
   const TopBar = ({left,title,right}) => (
     <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,
@@ -596,7 +604,13 @@ function App() {
               fontSize:15,display:"flex",alignItems:"center",gap:6}}>
             ✏️ 메모작성
           </button>
-          <span style={{fontSize:12,color:c.muted}}>{filtered.length}개</span>
+          <span style={{fontSize:12,color:c.muted}}>
+            {screen==="search"
+              ? `${filtered.length}개`
+              : filtered.length > showCount
+                ? `전체 ${filtered.length}개 중 ${showCount}개`
+                : `전체 ${filtered.length}개`}
+          </span>
         </div>
 
         {filtered.length===0 ? (
@@ -608,7 +622,7 @@ function App() {
           </div>
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {filtered.map(m=>{
+            {visibleMemos.map(m=>{
               const mt=CAT_META[m.category], cl=mt?.color||"#94a3b8";
               return (
                 <div key={m.id}
@@ -648,6 +662,29 @@ function App() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* 더보기 버튼 */}
+        {hasMore && (
+          <div style={{textAlign:"center",padding:"8px 0 4px"}}>
+            <button
+              onClick={()=>setShowCount(p=>p+PAGE_SIZE)}
+              style={{background:"transparent",border:`1px solid ${c.border}`,
+                borderRadius:20,padding:"8px 28px",fontSize:13,color:c.muted,
+                cursor:"pointer",fontFamily:ff}}>
+              더보기 ({filtered.length - showCount}개 남음)
+            </button>
+          </div>
+        )}
+        {!hasMore && filtered.length > PAGE_SIZE && screen!=="search" && (
+          <div style={{textAlign:"center",padding:"4px 0"}}>
+            <button
+              onClick={()=>setShowCount(PAGE_SIZE)}
+              style={{background:"transparent",border:"none",
+                fontSize:12,color:c.muted,cursor:"pointer",fontFamily:ff}}>
+              ▲ 접기
+            </button>
           </div>
         )}
 
