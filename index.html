@@ -340,8 +340,8 @@ function App() {
 
   const filtered = memos
     .filter(m=>{
-      const qOk = !query.trim() || (m.title+m.content).includes(query);
-      const cOk = filterCat==="전체" || m.category===filterCat;
+      const qOk = screen!=="search" || !query.trim() || (m.title+m.content).includes(query);
+      const cOk = screen!=="search" || filterCat==="전체" || m.category===filterCat;
       return qOk && cOk;
     })
     .sort((a,b)=>b.date-a.date);
@@ -439,7 +439,7 @@ function App() {
         }
         title={screen==="search" ? "검색" : "메모장"}
         right={<>
-          <IBtn ch="🔍" onClick={()=>setScreen(s=>s==="search"?"main":"search")} active={screen==="search"}/>
+          <IBtn ch="🔍" onClick={()=>{ if(screen==="search"){ setScreen("main"); setQuery(""); setFilterCat("전체"); } else { setScreen("search"); } }} active={screen==="search"}/>
           <IBtn ch="⚙️" onClick={()=>setScreen("settings")}/>
         </>}
       />
@@ -659,8 +659,6 @@ function App() {
         fontFamily:ff, background:c.bg, color:c.text,
         width:"100%", height:"100%",
         display:"flex", flexDirection:"column",
-        // ── [수정2] overflow:hidden 제거 → 스크롤 가능하도록 ──
-        overflow:"hidden",
       }}>
 
         <TopBar
