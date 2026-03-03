@@ -13,7 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;700&family=Gothic+A1:wght@400;700&family=Jua&family=Cute+Font&display=swap" rel="stylesheet"/>
   <script>
-    // 아이콘 (apple touch icon용)
     const ICON_URL = "/memoapp/icons/icon-192x192.png";
     const al = document.createElement("link");
     al.rel="apple-touch-icon"; al.href=ICON_URL;
@@ -22,11 +21,9 @@
   <link rel="manifest" href="/memoapp/manifest.json"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* 핵심: html/body는 그냥 100% - position:fixed 절대 금지 */
     html { height: 100%; background: #0f1117; }
     body { height: 100%; background: #0f1117; font-family: 'Noto Sans KR', sans-serif; }
     #root { height: 100%; }
-    /* 입력창 font-size 16px 필수 - 미만이면 안드로이드 자동줌 후 키보드 튕김 */
     input, textarea, select {
       -webkit-appearance: none;
       font-size: 16px;
@@ -58,6 +55,14 @@ const CAT_META = {
 };
 const DAYS_KR = ["일","월","화","수","목","금","토"];
 const FONTS = ["Noto Sans KR","Noto Serif KR","Gothic A1","Jua","Cute Font"];
+
+// ── [수정3] 알림 옵션 3가지 ──
+const REMINDER_OPTIONS = [
+  { value: 180, label: "3시간 전" },
+  { value: 60,  label: "1시간 전" },
+  { value: 30,  label: "30분 전"  },
+];
+
 const WMO = {
   0:{icon:"☀️",label:"맑음"}, 1:{icon:"🌤️",label:"대체로 맑음"},
   2:{icon:"⛅",label:"구름조금"}, 3:{icon:"☁️",label:"흐림"},
@@ -216,12 +221,14 @@ function App() {
   const [wTitle,   setWTitle]   = useState("");
   const [wContent, setWContent] = useState("");
   const [wImages,  setWImages]  = useState([]);
-  const [wApptDate,setWApptDate]= useState(""); // 약속 날짜
-  const [wApptTime,setWApptTime]= useState(""); // 약속 시간
+  const [wApptDate,setWApptDate]= useState("");
+  const [wApptTime,setWApptTime]= useState("");
+  // ── [수정3] 미리알림 옵션 state 추가 ──
+  const [wReminder,setWReminder]= useState(60); // 기본값: 1시간 전
   const [newCat,   setNewCat]   = useState("");
-  const [longPressed, setLongPressed] = useState(null); // 롱프레스된 메모 id
+  const [longPressed, setLongPressed] = useState(null);
   const longPressTimer = useRef(null);
-  const [filterCat,setFilterCat]= useState("전체"); // 검색 카테고리 필터
+  const [filterCat,setFilterCat]= useState("전체");
   const { weather, loading:wLoad, error:wErr, fetchWeather } = useWeather();
   const fileRef = useRef();
 
@@ -244,7 +251,7 @@ function App() {
   // CRUD
   function startWrite(cat, date=null) {
     setWCat(cat); setWTitle(""); setWContent(""); setWImages([]);
-    setWApptDate(""); setWApptTime("");
+    setWApptDate(""); setWApptTime(""); setWReminder(60);
     setSelDate(date||new Date()); setEditMemo(null);
     setCatPop(false); setScreen("write");
   }
@@ -252,6 +259,7 @@ function App() {
     setEditMemo(memo); setWCat(memo.category); setWTitle(memo.title);
     setWContent(memo.content); setWImages(memo.images||[]); setSelDate(memo.date);
     setWApptDate(memo.apptDate||""); setWApptTime(memo.apptTime||"");
+    setWReminder(memo.reminder ?? 60);
     setScreen("write");
   }
   function doSave() {
@@ -264,46 +272,45 @@ function App() {
       images: wImages,
       apptDate: wCat==="약속" ? wApptDate : undefined,
       apptTime: wCat==="약속" ? wApptTime : undefined,
+      reminder: wCat==="약속" ? wReminder : undefined,
     };
     setMemos(p => editMemo ? p.map(x=>x.id===m.id?m:x) : [m,...p]);
-    // 약속 알림 등록
     if (wCat==="약속" && wApptDate && wApptTime) {
       scheduleApptNotif(m);
     }
     setScreen("main");
   }
 
+  // ── [수정3] 선택된 미리알림 분 만큼 전에 알림 ──
   function scheduleApptNotif(m) {
     if (!("Notification" in window)) return;
     Notification.requestPermission().then(perm => {
       if (perm !== "granted") return;
       const apptMs = new Date(`${m.apptDate}T${m.apptTime}`).getTime();
-      const notifMs = apptMs - 60*60*1000; // 1시간 전
+      const reminderMin = m.reminder ?? 60;
+      const notifMs = apptMs - reminderMin * 60 * 1000;
       const delay = notifMs - Date.now();
       if (delay <= 0) return;
+      const opt = REMINDER_OPTIONS.find(o=>o.value===reminderMin);
       setTimeout(()=>{
-        new Notification("⏰ 약속 1시간 전!", {
+        new Notification(`⏰ 약속 ${opt?.label || reminderMin+"분 전"}!`, {
           body: m.title,
           icon: "/memoapp/icons/icon-192x192.png",
         });
       }, delay);
     });
   }
+
   function doDelete(id) {
     const target = memos.find(x=>x.id===id);
     const title = target?.title || "(제목 없음)";
     if (!window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)) return;
     setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
   }
-  // 롱프레스 핸들러
   function onLongPressStart(id) {
-    longPressTimer.current = setTimeout(()=>{
-      setLongPressed(id);
-    }, 500);
+    longPressTimer.current = setTimeout(()=>{ setLongPressed(id); }, 500);
   }
-  function onLongPressEnd() {
-    clearTimeout(longPressTimer.current);
-  }
+  function onLongPressEnd() { clearTimeout(longPressTimer.current); }
 
   function doShare(m) {
     const cat = CAT_META[m.category];
@@ -311,8 +318,7 @@ function App() {
       ? `\n날씨: ${m.weather.icon} ${m.weather.label} ${m.weather.tmin}°~${m.weather.tmax}°C`
       : "";
     const apptLine = (m.apptDate && m.apptTime)
-      ? `\n약속일시: ${m.apptDate} ${m.apptTime}`
-      : "";
+      ? `\n약속일시: ${m.apptDate} ${m.apptTime}` : "";
     const txt = [
       fmtDate(m.date),
       `[${cat?.icon||""}${m.category}] ${m.title}`,
@@ -411,15 +417,27 @@ function App() {
   };
 
   // ════════════════════════════════════════════════════
-  // 메인 화면
+  // 메인 / 검색 화면
   // ════════════════════════════════════════════════════
   if (screen==="main" || screen==="search") return (
     <div style={{fontFamily:ff,background:c.bg,color:c.text,
       width:"100%",height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
       <TopBar
-        left={<span style={{fontSize:22}}>📓</span>}
-        title="메모장"
+        // ── [수정1] 검색 상태일 때 왼쪽에 뒤로가기 아이콘 표시 ──
+        left={
+          screen==="search"
+            ? (
+              <button onClick={()=>{ setScreen("main"); setQuery(""); setFilterCat("전체"); }}
+                style={{background:"none",border:"none",cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:4,
+                  color:c.accent,fontFamily:ff,fontSize:16,padding:"4px 0"}}>
+                <span style={{fontSize:22,lineHeight:1}}>←</span>
+              </button>
+            )
+            : <span style={{fontSize:22}}>📓</span>
+        }
+        title={screen==="search" ? "검색" : "메모장"}
         right={<>
           <IBtn ch="🔍" onClick={()=>setScreen(s=>s==="search"?"main":"search")} active={screen==="search"}/>
           <IBtn ch="⚙️" onClick={()=>setScreen("settings")}/>
@@ -430,11 +448,19 @@ function App() {
       {screen==="search" && (
         <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,flexShrink:0}}>
           <div style={{padding:"10px 16px",display:"flex",gap:8,alignItems:"center"}}>
-            <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
-              placeholder="검색어를 입력하세요..."
-              style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
-                borderRadius:10,padding:"10px 14px",color:c.text,fontFamily:ff,outline:"none"}}/>
+            <div style={{flex:1,position:"relative",display:"flex",alignItems:"center"}}>
+              <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
+                placeholder="검색어를 입력하세요..."
+                style={{width:"100%",background:c.surface2,border:`1px solid ${c.border}`,
+                  borderRadius:10,padding:"10px 40px 10px 14px",color:c.text,fontFamily:ff,outline:"none"}}/>
+              {query && (
+                <button onClick={()=>setQuery("")}
+                  style={{position:"absolute",right:10,background:"none",border:"none",
+                    color:c.muted,cursor:"pointer",fontSize:18,lineHeight:1,
+                    display:"flex",alignItems:"center",padding:2}}>×</button>
+              )}
+            </div>
             <button onClick={()=>document.activeElement?.blur()}
               style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
                 padding:"10px 16px",cursor:"pointer",fontFamily:ff,fontWeight:700,
@@ -483,7 +509,9 @@ function App() {
         {filtered.length===0 ? (
           <div style={{textAlign:"center",color:c.muted,padding:"48px 0"}}>
             <div style={{fontSize:44,marginBottom:12}}>📓</div>
-            <div style={{fontSize:14,lineHeight:1.8}}>아직 메모가 없어요<br/>첫 메모를 작성해보세요!</div>
+            <div style={{fontSize:14,lineHeight:1.8}}>
+              {screen==="search" ? "검색 결과가 없어요" : "아직 메모가 없어요\n첫 메모를 작성해보세요!"}
+            </div>
           </div>
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -547,26 +575,19 @@ function App() {
               style={{background:c.surface,borderRadius:"20px 20px 0 0",
                 padding:"20px 20px 36px",width:"100%",maxWidth:480}}>
               <div style={{width:36,height:4,background:c.border,borderRadius:2,margin:"0 auto 16px"}}/>
-              {/* 선택된 메모 제목 */}
-              <div style={{
-                fontSize:13, color:c.muted, marginBottom:4, fontFamily:ff,
-                display:"flex", alignItems:"center", gap:6,
-              }}>
+              <div style={{fontSize:13,color:c.muted,marginBottom:4,fontFamily:ff,
+                display:"flex",alignItems:"center",gap:6}}>
                 <span style={{color:cl}}>{mt?.icon||"🗂️"} {m.category}</span>
               </div>
-              <div style={{
-                fontSize:16, fontWeight:700, color:c.text,
-                fontFamily:ff, marginBottom:20,
-                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
-              }}>{m.title}</div>
-              {/* 버튼 */}
-              <div style={{display:"flex", gap:10}}>
+              <div style={{fontSize:16,fontWeight:700,color:c.text,fontFamily:ff,marginBottom:20,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</div>
+              <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>{ setLongPressed(null); doShare(m); }}
-                  style={{flex:1, background:"#FEE500", color:"#3C1E1E",
-                    border:"none", borderRadius:14, padding:"14px",
-                    cursor:"pointer", fontFamily:ff, fontWeight:700,
-                    fontSize:16, display:"flex", alignItems:"center",
-                    justifyContent:"center", gap:8}}>
+                  style={{flex:1,background:"#FEE500",color:"#3C1E1E",
+                    border:"none",borderRadius:14,padding:"14px",
+                    cursor:"pointer",fontFamily:ff,fontWeight:700,
+                    fontSize:16,display:"flex",alignItems:"center",
+                    justifyContent:"center",gap:8}}>
                   <span>💬</span> 공유
                 </button>
                 <button onClick={()=>{
@@ -576,11 +597,11 @@ function App() {
                       setMemos(p=>p.filter(x=>x.id!==m.id));
                     }
                   }}
-                  style={{flex:1, background:"rgba(239,68,68,0.12)", color:c.danger,
-                    border:`1.5px solid ${c.danger}`, borderRadius:14, padding:"14px",
-                    cursor:"pointer", fontFamily:ff, fontWeight:700,
-                    fontSize:16, display:"flex", alignItems:"center",
-                    justifyContent:"center", gap:8}}>
+                  style={{flex:1,background:"rgba(239,68,68,0.12)",color:c.danger,
+                    border:`1.5px solid ${c.danger}`,borderRadius:14,padding:"14px",
+                    cursor:"pointer",fontFamily:ff,fontWeight:700,
+                    fontSize:16,display:"flex",alignItems:"center",
+                    justifyContent:"center",gap:8}}>
                   <span>🗑️</span> 삭제
                 </button>
               </div>
@@ -628,15 +649,19 @@ function App() {
   );
 
   // ════════════════════════════════════════════════════
-  // 메모 작성 화면
-  // 핵심: 전체가 스크롤되는 단순 구조
-  // fixed/sticky 일절 없음 → 키보드 튕김 원천 차단
+  // 메모 작성/보기 화면
+  // ── [수정2] 전체가 스크롤되는 구조 유지 + overflow 명시적 지정 ──
   // ════════════════════════════════════════════════════
   if (screen==="write") {
     const mt=CAT_META[wCat], cl=mt?.color||"#94a3b8";
     return (
-      <div style={{fontFamily:ff,background:c.bg,color:c.text,
-        width:"100%",minHeight:"100%",display:"flex",flexDirection:"column"}}>
+      <div style={{
+        fontFamily:ff, background:c.bg, color:c.text,
+        width:"100%", height:"100%",
+        display:"flex", flexDirection:"column",
+        // ── [수정2] overflow:hidden 제거 → 스크롤 가능하도록 ──
+        overflow:"hidden",
+      }}>
 
         <TopBar
           left={
@@ -650,8 +675,14 @@ function App() {
           right={editMemo && <IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
         />
 
-        {/* 전체 스크롤 영역 - 버튼 포함 */}
-        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        {/* ── [수정2] 스크롤 영역: flex:1 + overflowY:auto + WebkitOverflowScrolling:touch ── */}
+        <div style={{
+          flex:1,
+          overflowY:"auto",
+          WebkitOverflowScrolling:"touch",
+          // 안드로이드 PWA에서 스크롤 막히는 문제 해결
+          overscrollBehavior:"contain",
+        }}>
           <div style={{padding:"16px 16px 0"}}>
 
             {/* 날짜 */}
@@ -664,7 +695,7 @@ function App() {
               <div style={{marginBottom:16}}><WBadge/></div>
             )}
 
-            {/* 약속: 날짜/시간 입력 */}
+            {/* 약속: 날짜/시간 + 미리알림 선택 */}
             {wCat==="약속" && (
               <div style={{marginBottom:16,padding:"12px 14px",
                 background:isDark?"rgba(167,139,250,0.1)":"#f3f0ff",
@@ -672,7 +703,7 @@ function App() {
                 <div style={{fontSize:13,color:"#a78bfa",fontWeight:700,marginBottom:10}}>
                   📅 약속 일시
                 </div>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
                   <input
                     type="date"
                     value={wApptDate}
@@ -692,15 +723,38 @@ function App() {
                       fontSize:"16px",outline:"none"}}
                   />
                 </div>
-                <div style={{fontSize:11,color:c.muted,marginTop:8}}>
-                  ⏰ 설정한 시간 1시간 전에 알림을 드려요
+
+                {/* ── [수정3] 미리알림 옵션 3가지 선택 버튼 ── */}
+                <div style={{fontSize:12,color:"#a78bfa",fontWeight:600,marginBottom:8}}>
+                  ⏰ 미리알림
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  {REMINDER_OPTIONS.map(opt=>(
+                    <button key={opt.value}
+                      onClick={()=>setWReminder(opt.value)}
+                      style={{
+                        flex:1,
+                        padding:"8px 4px",
+                        borderRadius:10,
+                        border:`1.5px solid ${wReminder===opt.value ? "#a78bfa" : c.border}`,
+                        background: wReminder===opt.value
+                          ? (isDark ? "rgba(167,139,250,0.25)" : "#ede9fe")
+                          : c.surface2,
+                        color: wReminder===opt.value ? "#a78bfa" : c.muted,
+                        fontFamily:ff,
+                        fontSize:13,
+                        fontWeight: wReminder===opt.value ? 700 : 400,
+                        cursor:"pointer",
+                        transition:"all 0.15s",
+                      }}>
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* ★ 제목 입력 - 키보드 튕김 방지 핵심 ★
-                autoComplete/autoCorrect/autoCapitalize 모두 off
-                font-size 반드시 16px 이상 */}
+            {/* 제목 입력 */}
             <input
               type="text"
               value={wTitle}
@@ -720,12 +774,11 @@ function App() {
               }}
             />
 
-            {/* ★ 내용 입력 - 자동 높이 확장 ★ */}
+            {/* 내용 입력 */}
             <textarea
               value={wContent}
               onChange={e=>{
                 setWContent(e.target.value);
-                // 자동 높이 확장
                 e.target.style.height = "auto";
                 e.target.style.height = e.target.scrollHeight + "px";
               }}
@@ -744,7 +797,7 @@ function App() {
               }}
             />
 
-            {/* 사진 - 내용 바로 아래 가로 전체 너비 */}
+            {/* 사진 목록 */}
             {wImages.length>0 && (
               <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
                 {wImages.map((img,i)=>(
@@ -768,7 +821,6 @@ function App() {
                       }}>×</button>
                   </div>
                 ))}
-                {/* 사진 추가 버튼 */}
                 <button onClick={()=>fileRef.current?.click()}
                   style={{
                     width:"100%", padding:"14px",
@@ -786,7 +838,7 @@ function App() {
             )}
           </div>
 
-          {/* 하단 버튼 - 스크롤 내부에 자연스럽게 포함 */}
+          {/* 하단 버튼 영역 - 스크롤 내부에 자연스럽게 포함 */}
           <div style={{
             margin:"20px 16px 0",
             padding:"14px 0",
