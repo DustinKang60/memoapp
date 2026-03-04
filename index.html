@@ -188,20 +188,20 @@
         <button class="icon-btn" id="write-delete-btn" onclick="deleteCurrent()" style="display:none">🗑️</button>
       </div>
     </div>
-    <div class="scroll-area" style="padding:16px 20px 0">
+    <div class="scroll-area" style="padding:16px 20px 20px">
       <div id="write-date" style="font-size:13px;color:#64748b;margin-bottom:12px;font-weight:500"></div>
       <div id="weather-wrap"></div>
       <div id="appt-wrap"></div>
       <input class="write-title-input" id="write-title" placeholder="제목" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
       <textarea class="write-content-input" id="write-content" placeholder="내용을 입력하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="autoResize(this)"></textarea>
       <div id="img-list"></div>
-      <div class="write-actions">
-        <button id="write-share-btn" onclick="shareCurrent()" style="display:none;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700;font-size:14px;margin-right:auto">💬 공유</button>
-        <button class="btn-secondary" onclick="showScreen('main')">취소</button>
-        <button class="btn-secondary" onclick="fileInput.click()">📷</button>
-        <button class="btn-primary" onclick="doSave()">저장</button>
-      </div>
-      <div class="footer">작은앱공방</div>
+      <div class="footer" style="padding-bottom:0">작은앱공방</div>
+    </div>
+    <div style="background:#1a1d2e;border-top:1px solid #2d3154;padding:12px 16px;display:flex;gap:8px;justify-content:flex-end;align-items:center;flex-shrink:0">
+      <button id="write-share-btn" onclick="shareCurrent()" style="display:none;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700;font-size:14px;margin-right:auto">💬 공유</button>
+      <button class="btn-secondary" onclick="showScreen('main')">취소</button>
+      <button class="btn-secondary" onclick="fileInput.click()">📷</button>
+      <button class="btn-primary" onclick="doSave()">저장</button>
     </div>
   </div>
 
