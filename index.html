@@ -9,1270 +9,936 @@
   <meta name="apple-mobile-web-app-title" content="메모장"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <title>메모장</title>
+  <link rel="manifest" href="/memoapp/manifest.json"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;700&family=Gothic+A1:wght@400;700&family=Jua&family=Cute+Font&display=swap" rel="stylesheet"/>
-  <script>
-    const ICON_URL = "/memoapp/icons/icon-192x192.png";
-    const al = document.createElement("link");
-    al.rel="apple-touch-icon"; al.href=ICON_URL;
-    document.head.appendChild(al);
-  </script>
-  <link rel="manifest" href="/memoapp/manifest.json"/>
-
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { height: 100%; background: #0f1117; }
-    body { height: 100%; background: #0f1117; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
-    #root { height: 100%; display: flex; flex-direction: column; }
-    input, textarea, select {
-      -webkit-appearance: none;
-      font-size: 16px;
-      font-family: inherit;
-    }
     * { -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: #0f1117; overflow: hidden; }
+    body { font-family: 'Noto Sans KR', sans-serif; color: #e2e8f0; }
+    #app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    input, textarea, select, button { font-family: inherit; }
+    input, textarea { font-size: 16px; -webkit-appearance: none; }
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-thumb { background: #2d3154; border-radius: 2px; }
-    /* 상세편집 화면 webkit 스크롤바 숨김 */
-    .no-scrollbar::-webkit-scrollbar { display: none; }
+
+    .screen { display: none; flex-direction: column; height: 100dvh; overflow: hidden; }
+    .screen.active { display: flex; }
+
+    .topbar {
+      background: #1a1d2e; border-bottom: 1px solid #2d3154;
+      padding: 0 16px; height: 52px;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .topbar-title { font-weight: 700; font-size: 17px; }
+    .topbar-side { min-width: 64px; display: flex; align-items: center; gap: 4px; }
+    .topbar-side.right { justify-content: flex-end; }
+
+    .icon-btn { background: none; border: none; cursor: pointer; color: #64748b;
+      font-size: 22px; padding: 6px; display: flex; align-items: center; line-height: 1; }
+
+    .scroll-area {
+      flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+      -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .scroll-area::-webkit-scrollbar { display: none; }
+
+    .btn-primary { background: #3b82f6; color: #fff; border: none; border-radius: 10px;
+      padding: 10px 18px; cursor: pointer; font-weight: 700; font-size: 15px; }
+    .btn-secondary { background: #252840; color: #e2e8f0; border: 1px solid #2d3154;
+      border-radius: 10px; padding: 10px 16px; cursor: pointer; font-size: 15px; }
+
+    .memo-card {
+      background: #1a1d2e; border: 1px solid #2d3154; border-radius: 14px;
+      padding: 13px 14px; cursor: pointer; margin-bottom: 10px; transition: opacity 0.2s;
+    }
+    .cat-tag {
+      font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.07);
+      padding: 2px 8px; border-radius: 20px; display: inline-block;
+    }
+
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+    }
+    .overlay.hidden { display: none; }
+    .bottom-sheet {
+      background: #1a1d2e; border-radius: 20px 20px 0 0;
+      padding: 20px 20px 40px; width: 100%; max-width: 480px;
+    }
+    .sheet-handle { width: 36px; height: 4px; background: #2d3154; border-radius: 2px; margin: 0 auto 16px; }
+
+    .calendar { background: #1a1d2e; border: 1px solid #2d3154; border-radius: 16px; padding: 12px; margin-bottom: 12px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+    .cal-day-label { text-align: center; font-size: 11px; padding: 2px 0; color: #64748b; }
+    .cal-cell { text-align: center; border-radius: 8px; padding: 2px 0; cursor: pointer; }
+    .cal-num { font-size: 13px; line-height: 1.6; }
+    .cal-dot-row { height: 4px; display: flex; justify-content: center; align-items: center; }
+    .cal-dot { width: 4px; height: 4px; border-radius: 50%; background: #f472b6; }
+    .cal-cell.today { background: #3b82f6; }
+    .cal-cell.today .cal-num { color: #fff; font-weight: 700; }
+    .cal-cell.sun .cal-num { color: #ef4444; }
+    .cal-cell.sat .cal-num { color: #60a5fa; }
+
+    .settings-row {
+      background: #1a1d2e; border: 1px solid #2d3154; border-radius: 12px;
+      padding: 14px; margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .settings-sec { font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 1px; margin: 24px 0 8px; }
+
+    .toggle { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: #4b5563; border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+    .toggle-slider::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+    .toggle input:checked + .toggle-slider { background: #3b82f6; }
+    .toggle input:checked + .toggle-slider::after { left: 23px; }
+
+    .search-input-wrap { display: flex; gap: 8px; align-items: center; position: relative; }
+    .search-input { flex: 1; background: #252840; border: 1px solid #2d3154; border-radius: 10px; padding: 10px 36px 10px 14px; color: #e2e8f0; outline: none; }
+    .search-clear { position: absolute; right: 72px; background: none; border: none; color: #64748b; cursor: pointer; font-size: 18px; }
+    .search-btn { background: #3b82f6; color: #fff; border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+    .cat-filter-btn { background: #252840; color: #64748b; border: 1.5px solid #2d3154; border-radius: 20px; padding: 6px 14px; cursor: pointer; font-size: 13px; flex-shrink: 0; white-space: nowrap; }
+    .cat-filter-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+
+    .write-title-input { display: block; width: 100%; background: transparent; border: none; border-bottom: 2px solid #3b82f6; padding: 10px 0; margin-bottom: 16px; font-size: 18px; font-weight: 700; color: #e2e8f0; outline: none; }
+    .write-content-input { display: block; width: 100%; background: transparent; border: none; resize: none; font-size: 16px; line-height: 1.9; color: #e2e8f0; outline: none; overflow: hidden; min-height: 200px; }
+
+    .weather-btn { padding: 10px 14px; background: #252840; border-radius: 12px; font-size: 14px; color: #64748b; border: 1px solid #2d3154; cursor: pointer; margin-bottom: 16px; display: inline-block; }
+    .weather-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(59,130,246,0.12); border-radius: 14px; border: 1px solid rgba(59,130,246,0.3); margin-bottom: 16px; }
+
+    .appt-box { background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.3); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+    .appt-input { flex: 1; background: #252840; border: 1px solid #2d3154; border-radius: 8px; padding: 9px 10px; color: #e2e8f0; font-size: 16px; outline: none; }
+    .reminder-btn { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1.5px solid #2d3154; background: #252840; color: #64748b; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+    .reminder-btn.active { border-color: #a78bfa; background: rgba(167,139,250,0.25); color: #a78bfa; font-weight: 700; }
+
+    .img-wrap { position: relative; width: 100%; margin-bottom: 10px; }
+    .img-wrap img { width: 100%; height: auto; max-height: 360px; object-fit: cover; border-radius: 14px; border: 1.5px solid #2d3154; display: block; }
+    .img-del { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 18px; line-height: 30px; text-align: center; font-weight: 700; }
+    .add-photo-btn { width: 100%; padding: 14px; background: #252840; border: 2px dashed #2d3154; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: #64748b; font-size: 14px; margin-top: 10px; }
+
+    .write-actions { margin: 20px 16px 0; padding: 14px 0; border-top: 1px solid #2d3154; display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-shrink: 0; }
+
+    .cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+    .cat-btn { background: rgba(255,255,255,0.05); border: 2px solid; border-radius: 14px; padding: 14px 8px; cursor: pointer; color: #e2e8f0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+
+    .empty { text-align: center; color: #64748b; padding: 48px 0; }
+    .footer { text-align: center; font-size: 11px; color: #64748b; padding: 24px 0 8px; }
   </style>
 </head>
 <body>
-<div id="root"></div>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script type="text/babel" data-presets="react">
-const { useState, useRef, useEffect, useCallback } = React;
+<div id="app">
 
-// ─── 상수 ──────────────────────────────────────────────────────
-const STORAGE_KEY  = "memoapp_memos_v3";
-const SETTINGS_KEY = "memoapp_settings_v3";
+  <!-- 메인 화면 -->
+  <div id="screen-main" class="screen active">
+    <div class="topbar">
+      <div class="topbar-side"><span style="font-size:22px">📓</span></div>
+      <span class="topbar-title">메모장</span>
+      <div class="topbar-side right">
+        <button class="icon-btn" onclick="openSearch()">🔍</button>
+        <button class="icon-btn" onclick="showScreen('settings')">⚙️</button>
+      </div>
+    </div>
+    <div class="scroll-area" style="padding:14px">
+      <div id="calendar-wrap"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <button class="btn-primary" onclick="openCatPop(null)" style="display:flex;align-items:center;gap:6px">✏️ 메모작성</button>
+        <span id="memo-count" style="font-size:12px;color:#64748b"></span>
+      </div>
+      <div id="memo-list"></div>
+      <div id="loadmore-wrap"></div>
+      <div class="footer">작은앱공방 · 강종훈</div>
+    </div>
+  </div>
 
-// ── IndexedDB 이중백업 (캐시/localStorage 삭제해도 살아남음) ──
-function idbSave(memos) {
+  <!-- 검색 화면 -->
+  <div id="screen-search" class="screen">
+    <div class="topbar">
+      <div class="topbar-side">
+        <button onclick="closeSearch()" style="background:none;border:none;color:#3b82f6;cursor:pointer;font-size:16px;display:flex;align-items:center;gap:4px;padding:4px 0">← 뒤로</button>
+      </div>
+      <span class="topbar-title">검색</span>
+      <div class="topbar-side right"></div>
+    </div>
+    <div style="background:#1a1d2e;border-bottom:1px solid #2d3154;padding:10px 16px;flex-shrink:0">
+      <div class="search-input-wrap">
+        <input class="search-input" id="search-input" placeholder="검색어를 입력하세요..." oninput="doSearch()" onkeydown="if(event.key==='Enter')this.blur()"/>
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">×</button>
+        <button class="search-btn" onclick="document.getElementById('search-input').blur()">검색</button>
+      </div>
+      <div style="display:flex;gap:6px;padding-top:8px;overflow-x:auto" id="search-cat-filters"></div>
+    </div>
+    <div class="scroll-area" style="padding:14px">
+      <div id="search-list"></div>
+      <div class="footer">작은앱공방 · 강종훈</div>
+    </div>
+  </div>
+
+  <!-- 쓰기/보기 화면 -->
+  <div id="screen-write" class="screen">
+    <div class="topbar">
+      <div class="topbar-side">
+        <button onclick="showScreen('main')" style="background:none;border:none;color:#3b82f6;cursor:pointer;font-size:16px;padding:4px 0">‹ 뒤로</button>
+      </div>
+      <span class="topbar-title" id="write-topbar-title"></span>
+      <div class="topbar-side right">
+        <button class="icon-btn" id="write-delete-btn" onclick="deleteCurrent()" style="display:none">🗑️</button>
+      </div>
+    </div>
+    <div class="scroll-area" style="padding:16px 20px 0">
+      <div id="write-date" style="font-size:13px;color:#64748b;margin-bottom:12px;font-weight:500"></div>
+      <div id="weather-wrap"></div>
+      <div id="appt-wrap"></div>
+      <input class="write-title-input" id="write-title" placeholder="제목" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <textarea class="write-content-input" id="write-content" placeholder="내용을 입력하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="autoResize(this)"></textarea>
+      <div id="img-list"></div>
+      <div class="write-actions">
+        <button id="write-share-btn" onclick="shareCurrent()" style="display:none;background:#FEE500;color:#3C1E1E;border:none;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700;font-size:14px;margin-right:auto">💬 공유</button>
+        <button class="btn-secondary" onclick="showScreen('main')">취소</button>
+        <button class="btn-secondary" onclick="fileInput.click()">📷</button>
+        <button class="btn-primary" onclick="doSave()">저장</button>
+      </div>
+      <div class="footer">작은앱공방</div>
+    </div>
+  </div>
+
+  <!-- 설정 화면 -->
+  <div id="screen-settings" class="screen">
+    <div class="topbar">
+      <div class="topbar-side">
+        <button onclick="showScreen('main')" style="background:none;border:none;color:#3b82f6;cursor:pointer;font-size:16px;padding:4px 0">‹ 뒤로</button>
+      </div>
+      <span class="topbar-title">설정</span>
+      <div class="topbar-side right"></div>
+    </div>
+    <div class="scroll-area" style="padding:4px 16px 40px">
+      <div class="settings-sec">테마</div>
+      <div class="settings-row">
+        <div style="display:flex;align-items:center;gap:10px"><span>🌙</span><span>다크 모드</span></div>
+        <label class="toggle"><input type="checkbox" id="dark-toggle" onchange="toggleDark(this.checked)"/><span class="toggle-slider"></span></label>
+      </div>
+      <div class="settings-sec">폰트</div>
+      <div class="settings-row">
+        <div style="display:flex;align-items:center;gap:10px"><span>🔤</span><span>폰트</span></div>
+        <select id="font-select" onchange="changeFont(this.value)" style="background:#252840;border:1px solid #2d3154;border-radius:8px;padding:6px 8px;color:#e2e8f0">
+          <option>Noto Sans KR</option>
+          <option>Noto Serif KR</option>
+          <option>Gothic A1</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div style="display:flex;align-items:center;gap:10px"><span>🔡</span><span>글씨 크기</span></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button onclick="changeFontSize(-1)" style="background:#252840;border:1px solid #2d3154;color:#e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">−</button>
+          <span id="font-size-val" style="min-width:28px;text-align:center">15</span>
+          <button onclick="changeFontSize(1)" style="background:#252840;border:1px solid #2d3154;color:#e2e8f0;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:16px">+</button>
+        </div>
+      </div>
+      <div class="settings-sec">메모 종류</div>
+      <div class="settings-row" style="flex-direction:column;align-items:stretch">
+        <div id="cat-list-settings"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <input id="new-cat-input" placeholder="새 종류 추가..." autocomplete="off" onkeydown="if(event.key==='Enter')addCat()"
+            style="flex:1;background:#252840;border:1px solid #2d3154;border-radius:8px;padding:10px;color:#e2e8f0;outline:none;font-size:16px"/>
+          <button class="btn-primary" onclick="addCat()" style="padding:10px 14px">추가</button>
+        </div>
+      </div>
+      <div class="settings-sec">공유</div>
+      <div onclick="shareApp()" style="background:#FEE500;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:20px">💬</span>
+        <span style="color:#3C1E1E;font-weight:700;font-size:15px">카카오톡으로 공유하기</span>
+      </div>
+      <div class="settings-sec">데이터</div>
+      <div class="settings-row">
+        <div style="display:flex;align-items:center;gap:10px"><span>📊</span><span id="memo-count-settings">저장된 메모: 0개</span></div>
+      </div>
+      <div onclick="exportData()" style="background:#1a1d2e;border:1px solid #3b82f6;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:18px">📤</span>
+        <div><div style="color:#3b82f6;font-size:15px;font-weight:600">내보내기 (JSON 다운로드)</div><div style="color:#64748b;font-size:12px;margin-top:2px">전체 메모를 파일로 내보내기</div></div>
+      </div>
+      <div onclick="importData()" style="background:#1a1d2e;border:1px solid #3b82f6;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:18px">📥</span>
+        <div><div style="color:#3b82f6;font-size:15px;font-weight:600">가져오기 (파일에서 불러오기)</div><div style="color:#64748b;font-size:12px;margin-top:2px">가져온 파일로 메모 복구</div></div>
+      </div>
+      <div onclick="deleteAll()" style="background:#1a1d2e;border:1px solid #ef4444;border-radius:12px;padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">🗑️</span>
+        <span style="color:#ef4444;font-size:15px;font-weight:600">모든 메모 삭제</span>
+      </div>
+      <div style="text-align:center;margin-top:32px;font-size:12px;color:#64748b">메모장 v2.0 · 작은앱공방</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 오버레이: 카테고리 선택 -->
+<div class="overlay hidden" id="overlay-cat" onclick="closeCatPop()">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div style="text-align:center;font-size:15px;font-weight:700;margin-bottom:8px">어떤 종류의 메모인가요?</div>
+    <div id="cat-pop-date" style="text-align:center;font-size:12px;color:#64748b;margin-bottom:16px"></div>
+    <div class="cat-grid" id="cat-pop-grid"></div>
+  </div>
+</div>
+
+<!-- 오버레이: 롱프레스 -->
+<div class="overlay hidden" id="overlay-longpress" onclick="closeLongPress()">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div id="longpress-cat" style="font-size:13px;color:#64748b;margin-bottom:4px"></div>
+    <div id="longpress-title" style="font-size:16px;font-weight:700;margin-bottom:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="longPressShare()" style="flex:1;background:#FEE500;color:#3C1E1E;border:none;border-radius:14px;padding:14px;cursor:pointer;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px">💬 공유</button>
+      <button onclick="longPressDelete()" style="flex:1;background:rgba(239,68,68,0.12);color:#ef4444;border:1.5px solid #ef4444;border-radius:14px;padding:14px;cursor:pointer;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px">🗑️ 삭제</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="onImgSelect(this)"/>
+<input type="file" id="import-input" accept=".json" style="display:none" onchange="onImportFile(this)"/>
+
+<script>
+'use strict';
+
+// ── 상수 ──────────────────────────────────────────
+var STORAGE_KEY  = 'memoapp_memos_v3';
+var SETTINGS_KEY = 'memoapp_settings_v3';
+var fileInput    = document.getElementById('file-input');
+var importInput  = document.getElementById('import-input');
+
+var CAT_META = {
+  '메모':     { icon:'📝', color:'#60a5fa' },
+  '일기':     { icon:'📖', color:'#f472b6' },
+  '아이디어': { icon:'💡', color:'#fbbf24' },
+  '업무':     { icon:'💼', color:'#34d399' },
+  '약속':     { icon:'📅', color:'#a78bfa' }
+};
+var DEFAULT_CATS = ['메모','일기','아이디어','업무','약속'];
+var DAYS = ['일','월','화','수','목','금','토'];
+var WMO = {
+  0:{i:'☀️',l:'맑음'},1:{i:'🌤️',l:'대체로 맑음'},2:{i:'⛅',l:'구름조금'},3:{i:'☁️',l:'흐림'},
+  45:{i:'🌫️',l:'안개'},51:{i:'🌦️',l:'이슬비'},61:{i:'🌧️',l:'비'},71:{i:'🌨️',l:'눈'},
+  80:{i:'🌦️',l:'소나기'},95:{i:'⛈️',l:'뇌우'}
+};
+function getWMO(c) { return WMO[c] || {i:'🌡️',l:'알 수 없음'}; }
+
+// ── State ─────────────────────────────────────────
+var memos       = [];
+var settings    = { isDark:true, font:'Noto Sans KR', fontSize:15, cats:DEFAULT_CATS.slice() };
+var showCount   = 20;
+var filterCat   = '전체';
+var weatherData = null;
+var calDate     = new Date();
+var editId      = null;
+var writeDate   = new Date();
+var writeCat    = '메모';
+var writeImages = [];
+var writeApptDate = '';
+var writeApptTime = '';
+var writeReminder = 60;
+var longPressId   = null;
+var longPressTimer = null;
+var catPopDate  = null;
+
+// ── IndexedDB ─────────────────────────────────────
+function idbSave(ms) {
   try {
-    const req = indexedDB.open("memoapp_db", 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore("backups");
-    req.onsuccess = e => {
-      const tx = e.target.result.transaction("backups", "readwrite");
-      tx.objectStore("backups").put(
-        JSON.stringify(memos.map(m=>({...m, date: m.date instanceof Date ? m.date.toISOString() : m.date}))),
-        "latest"
+    var req = indexedDB.open('memoapp_db', 1);
+    req.onupgradeneeded = function(e) { e.target.result.createObjectStore('backups'); };
+    req.onsuccess = function(e) {
+      var tx = e.target.result.transaction('backups','readwrite');
+      tx.objectStore('backups').put(
+        JSON.stringify(ms.map(function(m){ return Object.assign({},m,{date: m.date instanceof Date ? m.date.toISOString() : m.date}); })),
+        'latest'
       );
     };
-  } catch(err) { console.log("IDB저장오류:", err); }
+  } catch(e) {}
 }
-
-function idbLoad(callback) {
+function idbLoad(cb) {
   try {
-    const req = indexedDB.open("memoapp_db", 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore("backups");
-    req.onsuccess = e => {
-      const get = e.target.result.transaction("backups","readonly").objectStore("backups").get("latest");
-      get.onsuccess = () => {
+    var req = indexedDB.open('memoapp_db', 1);
+    req.onupgradeneeded = function(e) { e.target.result.createObjectStore('backups'); };
+    req.onsuccess = function(e) {
+      var get = e.target.result.transaction('backups','readonly').objectStore('backups').get('latest');
+      get.onsuccess = function() {
         if (get.result) {
-          try { callback(JSON.parse(get.result).map(m=>({...m,date:new Date(m.date)}))); }
-          catch(e) { callback(null); }
-        } else { callback(null); }
+          try { cb(JSON.parse(get.result).map(function(m){ return Object.assign({},m,{date:new Date(m.date)}); })); }
+          catch(err) { cb(null); }
+        } else { cb(null); }
       };
-      get.onerror = () => callback(null);
+      get.onerror = function() { cb(null); };
     };
-    req.onerror = () => callback(null);
-  } catch(e) { callback(null); }
+    req.onerror = function() { cb(null); };
+  } catch(e) { cb(null); }
 }
-const DEFAULT_CATS = ["메모","일기","아이디어","업무","약속"];
-const CAT_META = {
-  "메모":     { icon:"📝", color:"#60a5fa" },
-  "일기":     { icon:"📖", color:"#f472b6" },
-  "아이디어": { icon:"💡", color:"#fbbf24" },
-  "업무":     { icon:"💼", color:"#34d399" },
-  "약속":     { icon:"📅", color:"#a78bfa" },
-};
-const DAYS_KR = ["일","월","화","수","목","금","토"];
-const FONTS = ["Noto Sans KR","Noto Serif KR","Gothic A1","Jua","Cute Font"];
 
-// ── [수정3] 알림 옵션 3가지 ──
-const REMINDER_OPTIONS = [
-  { value: 180, label: "3시간 전" },
-  { value: 60,  label: "1시간 전" },
-  { value: 30,  label: "30분 전"  },
-];
-
-const WMO = {
-  0:{icon:"☀️",label:"맑음"}, 1:{icon:"🌤️",label:"대체로 맑음"},
-  2:{icon:"⛅",label:"구름조금"}, 3:{icon:"☁️",label:"흐림"},
-  45:{icon:"🌫️",label:"안개"}, 48:{icon:"🌫️",label:"안개"},
-  51:{icon:"🌦️",label:"이슬비"}, 53:{icon:"🌦️",label:"이슬비"}, 55:{icon:"🌧️",label:"이슬비(강)"},
-  61:{icon:"🌧️",label:"비"}, 63:{icon:"🌧️",label:"비(중)"}, 65:{icon:"🌧️",label:"비(강)"},
-  71:{icon:"🌨️",label:"눈"}, 73:{icon:"🌨️",label:"눈(중)"}, 75:{icon:"❄️",label:"눈(강)"},
-  80:{icon:"🌦️",label:"소나기"}, 95:{icon:"⛈️",label:"뇌우"}, 99:{icon:"⛈️",label:"뇌우+우박"},
-};
-const getWMO = c => WMO[c] || { icon:"🌡️", label:"알 수 없음" };
-
-function fmtDate(d) {
-  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"),
-        dd=String(d.getDate()).padStart(2,"0"), day=DAYS_KR[d.getDay()];
-  return `${y}-${m}-${dd} (${day}요일)`;
-}
-function sameDay(a,b) {
-  return a.getFullYear()===b.getFullYear() &&
-         a.getMonth()===b.getMonth() &&
-         a.getDate()===b.getDate();
-}
-function dKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
-
-// ─── Storage ────────────────────────────────────────────────────
+// ── Storage ───────────────────────────────────────
 function loadMemos() {
   try {
-    const r = localStorage.getItem(STORAGE_KEY);
-    return r ? JSON.parse(r).map(m=>({...m, date:new Date(m.date)})) : [];
-  } catch { return []; }
+    var r = localStorage.getItem(STORAGE_KEY);
+    return r ? JSON.parse(r).map(function(m){ return Object.assign({},m,{date:new Date(m.date)}); }) : [];
+  } catch(e) { return []; }
 }
 function saveMemos(ms) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(ms));
-  idbSave(ms); // IndexedDB에도 이중저장
+  idbSave(ms);
+  memos = ms;
 }
 function loadSettings() {
-  try { const r=localStorage.getItem(SETTINGS_KEY); return r?JSON.parse(r):null; }
-  catch { return null; }
+  try { var r=localStorage.getItem(SETTINGS_KEY); return r?JSON.parse(r):null; }
+  catch(e) { return null; }
 }
-function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
-
-// ─── 날씨 훅 ────────────────────────────────────────────────────
-function useWeather() {
-  const [w, setW]       = useState(null);
-  const [loading, setL] = useState(false);
-  const [error, setE]   = useState(null);
-  const cache = useRef({});
-
-  const fetch_ = useCallback(async () => {
-    setL(true); setE(null);
-    try {
-      const pos = await new Promise((res,rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout:8000 })
-      );
-      const { latitude:lat, longitude:lon } = pos.coords;
-      const ck = `${Math.round(lat*10)}_${Math.round(lon*10)}`;
-      if (cache.current[ck] && Date.now()-cache.current[ck].ts < 3600000) {
-        setW(cache.current[ck].data); setL(false); return;
-      }
-      let city = "";
-      try {
-        const gr = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=ko`,
-          { headers:{ "User-Agent":"MemoApp/1.0" } }
-        );
-        const gd = await gr.json();
-        city = gd.address?.city || gd.address?.town || gd.address?.county || "";
-      } catch {}
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1`;
-      const res  = await fetch(url);
-      const data = await res.json();
-      const code = data.daily.weathercode[0];
-      const result = {
-        ...getWMO(code),
-        tmin: Math.round(data.daily.temperature_2m_min[0]),
-        tmax: Math.round(data.daily.temperature_2m_max[0]),
-        city
-      };
-      cache.current[ck] = { data:result, ts:Date.now() };
-      setW(result);
-    } catch(e) {
-      setE(e.code===1 ? "위치 권한 필요" : "날씨 오류");
-    }
-    setL(false);
-  }, []);
-
-  return { weather:w, loading, error, fetchWeather:fetch_ };
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
-// ─── 캘린더 ─────────────────────────────────────────────────────
-function Calendar({ memos, onDateClick, c, font }) {
-  const [cur, setCur] = useState(new Date());
-  const y=cur.getFullYear(), mo=cur.getMonth();
-  const first=new Date(y,mo,1).getDay();
-  const days=new Date(y,mo+1,0).getDate();
-  const cells=[];
-  for(let i=0;i<first;i++) cells.push(null);
-  for(let d=1;d<=days;d++) cells.push(d);
-  const mp={};
-  memos.forEach(m => { mp[dKey(m.date)]=true; });
-
-  return (
-    <div style={{background:c.surface,borderRadius:16,padding:"12px",
-      marginBottom:12,border:`1px solid ${c.border}`}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-        <button onClick={()=>setCur(new Date(y,mo-1,1))}
-          style={{background:"none",border:"none",color:c.muted,fontSize:22,
-            cursor:"pointer",padding:"0 10px",lineHeight:1}}>‹</button>
-        <span style={{color:c.text,fontWeight:700,fontSize:14,fontFamily:`'${font}',sans-serif`}}>
-          {y}년 {mo+1}월
-        </span>
-        <button onClick={()=>setCur(new Date(y,mo+1,1))}
-          style={{background:"none",border:"none",color:c.muted,fontSize:22,
-            cursor:"pointer",padding:"0 10px",lineHeight:1}}>›</button>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",marginBottom:2}}>
-        {["일","월","화","수","목","금","토"].map((d,i)=>(
-          <div key={d} style={{textAlign:"center",fontSize:11,padding:"2px 0",
-            color:i===0?"#ef4444":i===6?"#60a5fa":c.muted}}>{d}</div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>
-        {cells.map((day,i)=>{
-          const isToday = day && sameDay(new Date(y,mo,day), new Date());
-          const has = day && mp[dKey(new Date(y,mo,day))];
-          return (
-            <div key={i} onClick={()=>day&&onDateClick(new Date(y,mo,day))}
-              style={{textAlign:"center",borderRadius:8,padding:"2px 0",
-                cursor:day?"pointer":"default",
-                background:isToday?"#3b82f6":"transparent"}}>
-              {day && <>
-                <div style={{fontSize:13,lineHeight:"1.6",fontWeight:isToday?700:400,
-                  color:isToday?"#fff":i%7===0?"#ef4444":i%7===6?"#60a5fa":c.text}}>{day}</div>
-                <div style={{height:4,display:"flex",justifyContent:"center",alignItems:"center"}}>
-                  {has && <div style={{width:4,height:4,borderRadius:"50%",background:"#f472b6"}}/>}
-                </div>
-              </>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+// ── 날짜 유틸 ─────────────────────────────────────
+function fmtDate(d) {
+  var y=d.getFullYear(), m=String(d.getMonth()+1).padStart('0',2),
+      dd=String(d.getDate()).padStart('0',2), day=DAYS[d.getDay()];
+  // padStart 인자 순서 수정
+  m  = String(d.getMonth()+1); if(m.length<2)  m='0'+m;
+  dd = String(d.getDate());    if(dd.length<2) dd='0'+dd;
+  return y+'-'+m+'-'+dd+' ('+day+'요일)';
+}
+function sameDay(a,b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─── 메인 앱 ────────────────────────────────────────────────────
-function App() {
-  const saved = loadSettings();
-  const [isDark,   setIsDark]   = useState(saved?.isDark   ?? true);
-  const [font,     setFont]     = useState(saved?.font     ?? "Noto Sans KR");
-  const [fSize,    setFSize]    = useState(saved?.fontSize  ?? 15);
-  const [cats,     setCats]     = useState(saved?.categories ?? DEFAULT_CATS);
-  const [memos,    setMemos]    = useState(loadMemos);
-  const [screen,   setScreen]   = useState("main");
-  const [catPop,   setCatPop]   = useState(false);
-  const [selDate,  setSelDate]  = useState(null);
-  const [query,    setQuery]    = useState("");
-  const [editMemo, setEditMemo] = useState(null);
-  const [wCat,     setWCat]     = useState("");
-  const [wTitle,   setWTitle]   = useState("");
-  const [wContent, setWContent] = useState("");
-  const [wImages,  setWImages]  = useState([]);
-  const [wApptDate,setWApptDate]= useState("");
-  const [wApptTime,setWApptTime]= useState("");
-  // ── [수정3] 미리알림 옵션 state 추가 ──
-  const [wReminder,setWReminder]= useState(60); // 기본값: 1시간 전
-  const [newCat,   setNewCat]   = useState("");
-  const [longPressed, setLongPressed] = useState(null);
-  const longPressTimer = useRef(null);
-  const [filterCat,setFilterCat]= useState("전체");
-  const [showCount, setShowCount] = useState(20);
-  const { weather, loading:wLoad, error:wErr, fetchWeather } = useWeather();
-  const fileRef = useRef();
-
-  useEffect(()=>{ saveSettings({isDark,font,fontSize:fSize,categories:cats}); },[isDark,font,fSize,cats]);
-  useEffect(()=>{ saveMemos(memos); },[memos]);
-
-  // 팔레트
-  const c = {
-    bg:      isDark ? "#0f1117" : "#f4f7ff",
-    surface: isDark ? "#1a1d2e" : "#ffffff",
-    surface2:isDark ? "#252840" : "#eef1fb",
-    border:  isDark ? "#2d3154" : "#dde3f5",
-    text:    isDark ? "#e2e8f0" : "#1a1a2e",
-    muted:   isDark ? "#64748b" : "#8896b3",
-    accent:  "#3b82f6",
-    danger:  "#ef4444",
-  };
-  const ff = `'${font}', sans-serif`;
-
-  // CRUD
-  function startWrite(cat, date=null) {
-    setWCat(cat); setWTitle(""); setWContent(""); setWImages([]);
-    setWApptDate(""); setWApptTime(""); setWReminder(60);
-    setSelDate(date||new Date()); setEditMemo(null);
-    setCatPop(false); setScreen("write");
-  }
-  function openEdit(memo) {
-    setEditMemo(memo); setWCat(memo.category); setWTitle(memo.title);
-    setWContent(memo.content); setWImages(memo.images||[]); setSelDate(memo.date);
-    setWApptDate(memo.apptDate||""); setWApptTime(memo.apptTime||"");
-    setWReminder(memo.reminder ?? 60);
-    setScreen("write");
-  }
-  function doSave() {
-    if (!wTitle.trim() && !wContent.trim()) return;
-    const m = {
-      id: editMemo?.id || Date.now(),
-      category: wCat, date: selDate||new Date(),
-      title: wTitle||"(제목 없음)", content: wContent,
-      weather: wCat==="일기" ? weather : undefined,
-      images: wImages,
-      apptDate: wCat==="약속" ? wApptDate : undefined,
-      apptTime: wCat==="약속" ? wApptTime : undefined,
-      reminder: wCat==="약속" ? wReminder : undefined,
-    };
-    setMemos(p => editMemo ? p.map(x=>x.id===m.id?m:x) : [m,...p]);
-    if (wCat==="약속" && wApptDate && wApptTime) {
-      scheduleApptNotif(m);
-    }
-    setScreen("main");
-  }
-
-  // ── 약속 알림 스케줄 ──
-  // 구조: localStorage 저장 + SW postMessage (백그라운드 동작)
-  //       앱 완전 종료 시에는 동작 안 함 (서버 없이는 불가)
-  function scheduleApptNotif(m) {
-    if (!("Notification" in window)) return;
-    Notification.requestPermission().then(perm => {
-      if (perm !== "granted") {
-        alert("알림 권한이 거부되었습니다.\n기기 설정에서 이 앱의 알림을 허용해주세요.");
-        return;
-      }
-      const apptMs = new Date(`${m.apptDate}T${m.apptTime}`).getTime();
-      const reminderMin = m.reminder ?? 60;
-      const notifMs = apptMs - reminderMin * 60 * 1000;
-      const opt = REMINDER_OPTIONS.find(o => o.value === reminderMin);
-      const label = opt?.label || `${reminderMin}분 전`;
-
-      if (notifMs <= Date.now()) {
-        alert(`⚠️ 설정한 미리알림 시간(${label})이 이미 지났어요.`);
-        return;
-      }
-
-      // localStorage에 저장
-      const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
-      const rest = stored.filter(n => n.id !== m.id);
-      rest.push({
-        id: m.id,
-        title: `⏰ 약속 ${label}!`,
-        body: m.title,
-        notifTime: notifMs,
-      });
-      localStorage.setItem("memoapp_notifs", JSON.stringify(rest));
-
-      // SW에 알림 등록 (백그라운드에서도 동작)
-      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: "SCHEDULE_NOTIFICATION",
-          id: m.id,
-          title: `⏰ 약속 ${label}!`,
-          body: m.title,
-          notifTime: notifMs,
-        });
-      }
-
-      const timeStr = new Date(notifMs).toLocaleString("ko-KR", {
-        month: "numeric", day: "numeric",
-        hour: "2-digit", minute: "2-digit"
-      });
-      alert(`✅ 알림 설정 완료!\n${timeStr}에 알려드릴게요.\n(앱을 완전히 닫지 않으면 백그라운드에서도 알림이 와요 📲)`);
-    });
-  }
-
-  // ── 앱 시작 시 localStorage 비어있으면 IndexedDB에서 자동복구 ──
-  useEffect(() => {
-    if (memos.length === 0) {
-      idbLoad(recovered => {
-        if (recovered && recovered.length > 0) {
-          if (window.confirm(`💾 자동백업 데이터 ${recovered.length}개를 발견했어요!
-복구할까요?`)) {
-            setMemos(recovered);
-            saveMemos(recovered);
-          }
-        }
-      });
-    }
-  }, []);
-
-  // 앱 열려있을 때 1분마다 폴링 체크 (백업)
-  useEffect(() => {
-    const check = () => {
-      const stored = JSON.parse(localStorage.getItem("memoapp_notifs") || "[]");
-      const now = Date.now();
-      const remaining = [];
-      stored.forEach(n => {
-        if (now >= n.notifTime && now < n.notifTime + 120000) {
-          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: "SHOW_NOW", title: n.title, body: n.body,
-            });
-          } else if (Notification.permission === "granted") {
-            new Notification(n.title, {
-              body: n.body,
-              icon: "/memoapp/icons/icon-192x192.png",
-              vibrate: [200, 100, 200],
-            });
-          }
-        } else if (now < n.notifTime) {
-          remaining.push(n);
-        }
-      });
-      localStorage.setItem("memoapp_notifs", JSON.stringify(remaining));
-    };
-    check();
-    const t = setInterval(check, 60000);
-    return () => clearInterval(t);
-  }, []);
-
-  function doDelete(id) {
-    const target = memos.find(x=>x.id===id);
-    const title = target?.title || "(제목 없음)";
-    if (!window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)) return;
-    // localStorage 알림 취소
-    const stored = JSON.parse(localStorage.getItem("memoapp_notifs")||"[]");
-    localStorage.setItem("memoapp_notifs", JSON.stringify(stored.filter(n=>n.id!==id)));
-    // SW 알림 예약 취소
-    if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: "CANCEL_NOTIFICATION", id });
-    }
-    setMemos(p=>p.filter(x=>x.id!==id)); setScreen("main");
-  }
-  function onLongPressStart(id) {
-    longPressTimer.current = setTimeout(()=>{ setLongPressed(id); }, 500);
-  }
-  function onLongPressEnd() { clearTimeout(longPressTimer.current); }
-
-  function doShare(m) {
-    const cat = CAT_META[m.category];
-    const weatherLine = m.weather
-      ? `\n날씨: ${m.weather.icon} ${m.weather.label} ${m.weather.tmin}°~${m.weather.tmax}°C`
-      : "";
-    const apptLine = (m.apptDate && m.apptTime)
-      ? `\n약속일시: ${m.apptDate} ${m.apptTime}` : "";
-    const txt = [
-      fmtDate(m.date),
-      `[${cat?.icon||""}${m.category}] ${m.title}`,
-      weatherLine ? weatherLine.trim() : null,
-      apptLine ? apptLine.trim() : null,
-      m.content,
-      "- 작은앱공방 · 강종훈",
-    ].filter(Boolean).join("\n\n");
-    if (navigator.share) navigator.share({title:"", text:txt});
-    else { navigator.clipboard?.writeText(txt); alert("클립보드에 복사됐어요!"); }
-  }
-  // 사진 리사이즈 후 저장 (최대 800px, JPEG 품질 0.7)
-  // 원본 그대로 저장하면 localStorage 용량 초과로 먹통 발생
-  function onImg(e) {
-    const MAX_SIZE = 800;   // 가로/세로 최대 픽셀
-    const QUALITY  = 0.7;   // JPEG 압축 품질 (0~1)
-
-    Array.from(e.target.files).forEach(f => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new Image();
-        img.onload = () => {
-          // 리사이즈 비율 계산
-          let w = img.width;
-          let h = img.height;
-          if (w > MAX_SIZE || h > MAX_SIZE) {
-            if (w > h) { h = Math.round(h * MAX_SIZE / w); w = MAX_SIZE; }
-            else       { w = Math.round(w * MAX_SIZE / h); h = MAX_SIZE; }
-          }
-          // Canvas로 리사이즈 후 Base64 변환
-          const canvas = document.createElement("canvas");
-          canvas.width  = w;
-          canvas.height = h;
-          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-          const resized = canvas.toDataURL("image/jpeg", QUALITY);
-          setWImages(p => [...p, resized]);
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(f);
-    });
-  }
-
-  const filtered = memos
-    .filter(m=>{
-      const qOk = screen!=="search" || !query.trim() || (m.title+m.content).includes(query);
-      const cOk = screen!=="search" || filterCat==="전체" || m.category===filterCat;
-      return qOk && cOk;
-    })
-    .sort((a,b)=>b.date-a.date);
-
-  const PAGE_SIZE = 20;
-  const isMainScreen = screen === "main";
-  // 메인화면만 20개 제한, 검색화면은 전체 표시
-  const visibleMemos = isMainScreen ? filtered.slice(0, showCount) : filtered;
-  const hasMore = isMainScreen && (filtered.length > showCount);
-
-  // ── 공통 UI ──────────────────────────────────────────
-  const TopBar = ({left,title,right}) => (
-    <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,
-      padding:"0 16px",height:52,display:"flex",alignItems:"center",
-      justifyContent:"space-between",flexShrink:0}}>
-      <div style={{minWidth:64}}>{left}</div>
-      <span style={{fontFamily:ff,fontWeight:700,fontSize:17,color:c.text}}>{title}</span>
-      <div style={{minWidth:64,display:"flex",justifyContent:"flex-end",gap:4}}>{right}</div>
-    </div>
-  );
-  const IBtn = ({ch,onClick,active=false}) => (
-    <button onClick={onClick}
-      style={{background:"none",border:"none",cursor:"pointer",padding:"6px",
-        color:active?c.accent:c.muted,fontSize:22,lineHeight:1,display:"flex",alignItems:"center"}}>
-      {ch}
-    </button>
-  );
-  const PBtn = ({ch,onClick,style:s={}}) => (
-    <button onClick={onClick}
-      style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
-        padding:"10px 18px",cursor:"pointer",fontFamily:ff,fontSize:15,fontWeight:600,...s}}>
-      {ch}
-    </button>
-  );
-  const GBtn = ({ch,onClick,style:s={}}) => (
-    <button onClick={onClick}
-      style={{background:c.surface2,color:c.text,border:`1px solid ${c.border}`,
-        borderRadius:10,padding:"10px 16px",cursor:"pointer",fontFamily:ff,fontSize:15,...s}}>
-      {ch}
-    </button>
-  );
-
-  // 날씨 배지
-  const WBadge = () => {
-    if (wLoad) return (
-      <div style={{padding:"10px 14px",background:c.surface2,borderRadius:12,
-        fontSize:14,color:c.muted,border:`1px solid ${c.border}`,display:"inline-block"}}>
-        🌀 날씨 불러오는 중...
-      </div>
-    );
-    if (wErr) return (
-      <button onClick={fetchWeather}
-        style={{padding:"10px 14px",background:c.surface2,borderRadius:12,
-          fontSize:13,color:c.muted,border:`1px solid ${c.border}`,cursor:"pointer",fontFamily:ff}}>
-        ⚠️ {wErr} · 다시 시도
-      </button>
-    );
-    if (!weather) return (
-      <button onClick={fetchWeather}
-        style={{padding:"10px 14px",background:c.surface2,borderRadius:12,
-          fontSize:14,color:c.muted,border:`1px solid ${c.border}`,cursor:"pointer",
-          fontFamily:ff,display:"inline-flex",alignItems:"center",gap:8}}>
-        <span>📍</span> 날씨 불러오기
-      </button>
-    );
-    return (
-      <div style={{display:"inline-flex",alignItems:"center",gap:10,
-        padding:"10px 16px",background:isDark?"rgba(59,130,246,0.12)":"#dbeafe",
-        borderRadius:14,border:`1px solid ${isDark?"rgba(59,130,246,0.3)":"#bfdbfe"}`}}>
-        <span style={{fontSize:28}}>{weather.icon}</span>
-        <div>
-          <div style={{fontSize:14,fontWeight:700,color:c.text,fontFamily:ff}}>{weather.label}</div>
-          <div style={{fontSize:12,color:c.muted}}>
-            {weather.city&&`${weather.city} · `}{weather.tmin}° ~ {weather.tmax}°C
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ════════════════════════════════════════════════════
-  // 메인 / 검색 화면
-  // ════════════════════════════════════════════════════
-  if (screen==="main" || screen==="search") return (
-    <div style={{fontFamily:ff,background:c.bg,color:c.text,
-      width:"100%",height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-
-      <TopBar
-        // ── [수정1] 검색 상태일 때 왼쪽에 뒤로가기 아이콘 표시 ──
-        left={
-          screen==="search"
-            ? (
-              <button onClick={()=>{ setScreen("main"); setQuery(""); setFilterCat("전체"); }}
-                style={{background:"none",border:"none",cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:4,
-                  color:c.accent,fontFamily:ff,fontSize:16,padding:"4px 0"}}>
-                <span style={{fontSize:22,lineHeight:1}}>←</span>
-              </button>
-            )
-            : <span style={{fontSize:22}}>📓</span>
-        }
-        title={screen==="search" ? "검색" : "메모장"}
-        right={<>
-          <IBtn ch="🔍" onClick={()=>{ if(screen==="search"){ setScreen("main"); setQuery(""); setFilterCat("전체"); } else { setScreen("search"); } }} active={screen==="search"}/>
-          <IBtn ch="⚙️" onClick={()=>setScreen("settings")}/>
-        </>}
-      />
-
-      {/* 검색바 + 카테고리 필터 */}
-      {screen==="search" && (
-        <div style={{background:c.surface,borderBottom:`1px solid ${c.border}`,flexShrink:0}}>
-          <div style={{padding:"10px 16px",display:"flex",gap:8,alignItems:"center"}}>
-            <div style={{flex:1,position:"relative",display:"flex",alignItems:"center"}}>
-              <input autoFocus value={query} onChange={e=>setQuery(e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter") e.target.blur(); }}
-                placeholder="검색어를 입력하세요..."
-                style={{width:"100%",background:c.surface2,border:`1px solid ${c.border}`,
-                  borderRadius:10,padding:"10px 40px 10px 14px",color:c.text,fontFamily:ff,outline:"none"}}/>
-              {query && (
-                <button onClick={()=>setQuery("")}
-                  style={{position:"absolute",right:10,background:"none",border:"none",
-                    color:c.muted,cursor:"pointer",fontSize:18,lineHeight:1,
-                    display:"flex",alignItems:"center",padding:2}}>×</button>
-              )}
-            </div>
-            <button onClick={()=>document.activeElement?.blur()}
-              style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
-                padding:"10px 16px",cursor:"pointer",fontFamily:ff,fontWeight:700,
-                fontSize:14,flexShrink:0}}>검색</button>
-          </div>
-          <div style={{display:"flex",gap:6,padding:"0 16px 10px",overflowX:"auto"}}>
-            {["전체",...cats].map(cat=>{
-              const mt = cat==="전체" ? null : CAT_META[cat];
-              const cl = mt?.color || c.accent;
-              const active = filterCat===cat;
-              return (
-                <button key={cat} onClick={()=>setFilterCat(cat)}
-                  style={{
-                    background: active ? (cat==="전체" ? c.accent : cl) : c.surface2,
-                    color: active ? "#fff" : c.muted,
-                    border: `1.5px solid ${active?(cat==="전체"?c.accent:cl):c.border}`,
-                    borderRadius:20, padding:"6px 14px", cursor:"pointer",
-                    fontFamily:ff, fontSize:13, fontWeight:active?700:400,
-                    flexShrink:0, whiteSpace:"nowrap",
-                  }}>
-                  {cat==="전체" ? "전체" : `${mt?.icon||""} ${cat}`}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 스크롤 영역 */}
-      <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"14px"}}>
-        {screen!=="search" && (
-          <Calendar memos={memos} c={c} font={font}
-            onDateClick={d=>{ setSelDate(d); setCatPop(true); }}/>
-        )}
-
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <button onClick={()=>{ setSelDate(null); setCatPop(true); }}
-            style={{background:c.accent,color:"#fff",border:"none",borderRadius:10,
-              padding:"10px 18px",cursor:"pointer",fontFamily:ff,fontWeight:700,
-              fontSize:15,display:"flex",alignItems:"center",gap:6}}>
-            ✏️ 메모작성
-          </button>
-          <span style={{fontSize:12,color:c.muted}}>
-            {isMainScreen
-              ? (filtered.length > showCount
-                ? `전체 ${filtered.length}개 중 ${showCount}개`
-                : `전체 ${filtered.length}개`)
-              : `${filtered.length}개`}
-          </span>
-        </div>
-
-        {filtered.length===0 ? (
-          <div style={{textAlign:"center",color:c.muted,padding:"48px 0"}}>
-            <div style={{fontSize:44,marginBottom:12}}>📓</div>
-            <div style={{fontSize:14,lineHeight:1.8}}>
-              {screen==="search" ? "검색 결과가 없어요" : "아직 메모가 없어요\n첫 메모를 작성해보세요!"}
-            </div>
-          </div>
-        ) : (
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {visibleMemos.map(m=>{
-              const mt=CAT_META[m.category], cl=mt?.color||"#94a3b8";
-              return (
-                <div key={m.id}
-                  onClick={()=>{ if(longPressed===m.id) return; openEdit(m); }}
-                  onTouchStart={()=>onLongPressStart(m.id)}
-                  onTouchEnd={onLongPressEnd}
-                  onTouchMove={onLongPressEnd}
-                  onMouseDown={()=>onLongPressStart(m.id)}
-                  onMouseUp={onLongPressEnd}
-                  onMouseLeave={onLongPressEnd}
-                  style={{background:c.surface,border:`1px solid ${c.border}`,
-                    borderRadius:14,padding:"13px 14px",cursor:"pointer",
-                    borderLeft:`4px solid ${cl}`,
-                    opacity: longPressed && longPressed!==m.id ? 0.4 : 1,
-                    transition:"opacity 0.2s",
-                  }}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{fontSize:10,fontWeight:700,color:cl,
-                        background:isDark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.06)",
-                        padding:"2px 8px",borderRadius:20}}>
-                        {mt?.icon||"🗂️"} {m.category}
-                      </span>
-                      {m.weather&&<span style={{fontSize:13}}>{m.weather.icon}</span>}
-                    </div>
-                    <span style={{fontSize:12,color:c.muted}}>
-                      {m.date.getMonth()+1}/{m.date.getDate()}
-                    </span>
-                  </div>
-                  <div style={{fontWeight:700,fontSize:15,marginBottom:4,color:c.text}}>{m.title}</div>
-                  <div style={{fontSize:13,color:c.muted,overflow:"hidden",
-                    textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {m.content||"(내용 없음)"}
-                  </div>
-                  {m.images?.length>0 &&
-                    <div style={{fontSize:12,color:c.muted,marginTop:4}}>📷 {m.images.length}장</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* 더보기 버튼 */}
-        {hasMore && (
-          <div style={{textAlign:"center",padding:"8px 0 4px"}}>
-            <button
-              onClick={()=>setShowCount(p=>p+PAGE_SIZE)}
-              style={{background:"transparent",border:`1px solid ${c.border}`,
-                borderRadius:20,padding:"8px 28px",fontSize:13,color:c.muted,
-                cursor:"pointer",fontFamily:ff}}>
-              더보기 ({filtered.length - showCount}개 남음)
-            </button>
-          </div>
-        )}
-        {!hasMore && filtered.length > PAGE_SIZE && isMainScreen && (
-          <div style={{textAlign:"center",padding:"4px 0"}}>
-            <button
-              onClick={()=>setShowCount(PAGE_SIZE)}
-              style={{background:"transparent",border:"none",
-                fontSize:12,color:c.muted,cursor:"pointer",fontFamily:ff}}>
-              ▲ 접기
-            </button>
-          </div>
-        )}
-
-        <div style={{textAlign:"center",fontSize:11,color:c.muted,padding:"24px 0 8px"}}>작은앱공방 · 강종훈</div>
-      </div>
-
-      {/* 롱프레스 팝업 */}
-      {longPressed && (()=>{
-        const m = memos.find(x=>x.id===longPressed);
-        if (!m) return null;
-        const mt = CAT_META[m.category];
-        const cl = mt?.color || "#94a3b8";
-        return (
-          <div onClick={()=>setLongPressed(null)}
-            style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",
-              zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-            <div onClick={e=>e.stopPropagation()}
-              style={{background:c.surface,borderRadius:"20px 20px 0 0",
-                padding:"20px 20px 36px",width:"100%",maxWidth:480}}>
-              <div style={{width:36,height:4,background:c.border,borderRadius:2,margin:"0 auto 16px"}}/>
-              <div style={{fontSize:13,color:c.muted,marginBottom:4,fontFamily:ff,
-                display:"flex",alignItems:"center",gap:6}}>
-                <span style={{color:cl}}>{mt?.icon||"🗂️"} {m.category}</span>
-              </div>
-              <div style={{fontSize:16,fontWeight:700,color:c.text,fontFamily:ff,marginBottom:20,
-                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.title}</div>
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>{ setLongPressed(null); doShare(m); }}
-                  style={{flex:1,background:"#FEE500",color:"#3C1E1E",
-                    border:"none",borderRadius:14,padding:"14px",
-                    cursor:"pointer",fontFamily:ff,fontWeight:700,
-                    fontSize:16,display:"flex",alignItems:"center",
-                    justifyContent:"center",gap:8}}>
-                  <span>💬</span> 공유
-                </button>
-                <button onClick={()=>{
-                    setLongPressed(null);
-                    const title = m?.title || "(제목 없음)";
-                    if(window.confirm(`"${title}"\n\n이 메모를 삭제할까요?`)){
-                      setMemos(p=>p.filter(x=>x.id!==m.id));
-                    }
-                  }}
-                  style={{flex:1,background:"rgba(239,68,68,0.12)",color:c.danger,
-                    border:`1.5px solid ${c.danger}`,borderRadius:14,padding:"14px",
-                    cursor:"pointer",fontFamily:ff,fontWeight:700,
-                    fontSize:16,display:"flex",alignItems:"center",
-                    justifyContent:"center",gap:8}}>
-                  <span>🗑️</span> 삭제
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* 카테고리 팝업 */}
-      {catPop && (
-        <div onClick={()=>setCatPop(false)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",
-            zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:c.surface,borderRadius:"20px 20px 0 0",
-              padding:"20px 20px 36px",width:"100%",maxWidth:480}}>
-            <div style={{width:36,height:4,background:c.border,borderRadius:2,margin:"0 auto 16px"}}/>
-            <div style={{textAlign:"center",fontSize:15,fontWeight:700,color:c.text,marginBottom:8,fontFamily:ff}}>
-              어떤 종류의 메모인가요?
-            </div>
-            {selDate && (
-              <div style={{textAlign:"center",fontSize:12,color:c.muted,marginBottom:16}}>
-                {fmtDate(selDate)}
-              </div>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-              {cats.map(cat=>{
-                const mt=CAT_META[cat], cl=mt?.color||"#94a3b8";
-                return (
-                  <button key={cat} onClick={()=>startWrite(cat,selDate)}
-                    style={{background:isDark?"rgba(255,255,255,0.05)":c.surface2,
-                      border:`2px solid ${cl}`,borderRadius:14,
-                      padding:"14px 8px",cursor:"pointer",color:c.text,fontFamily:ff,fontWeight:700,
-                      display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:26}}>{mt?.icon||"🗂️"}</span>
-                    <span style={{fontSize:13}}>{cat}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // ════════════════════════════════════════════════════
-  // 메모 작성/보기 화면
-  // ── [수정2] 전체가 스크롤되는 구조 유지 + overflow 명시적 지정 ──
-  // ════════════════════════════════════════════════════
-  if (screen==="write") {
-    const mt=CAT_META[wCat], cl=mt?.color||"#94a3b8";
-    return (
-      <div style={{
-        fontFamily:ff, background:c.bg, color:c.text,
-        width:"100%",
-        height:"100dvh",
-        display:"flex", flexDirection:"column",
-        overflow:"hidden",
-      }}>
-
-        <TopBar
-          left={
-            <button onClick={()=>setScreen("main")}
-              style={{background:"none",border:"none",color:c.accent,
-                cursor:"pointer",fontFamily:ff,fontSize:16,padding:"4px 0"}}>
-              ‹ 뒤로
-            </button>
-          }
-          title={`${mt?.icon||"🗂️"} ${wCat}`}
-          right={editMemo && <IBtn ch="🗑️" onClick={()=>doDelete(editMemo.id)}/>}
-        />
-
-        {/* 스크롤 영역: minHeight:0 이 핵심 - flex child가 수축 가능해야 스크롤됨 */}
-        <div style={{
-          flex:1,
-          minHeight:0,
-          overflowY:"auto",
-          overflowX:"hidden",
-          WebkitOverflowScrolling:"touch",
-          overscrollBehavior:"contain",
-          scrollbarWidth:"none",
-          msOverflowStyle:"none",
-        }} className="no-scrollbar">
-          <div style={{padding:"16px 20px 0"}}>
-
-            {/* 날짜 */}
-            <div style={{fontSize:13,color:c.muted,marginBottom:12,fontWeight:500}}>
-              {fmtDate(selDate||new Date())}
-            </div>
-
-            {/* 일기: 날씨 */}
-            {wCat==="일기" && (
-              <div style={{marginBottom:16}}><WBadge/></div>
-            )}
-
-            {/* 약속: 날짜/시간 + 미리알림 선택 */}
-            {wCat==="약속" && (
-              <div style={{marginBottom:16,padding:"12px 14px",
-                background:isDark?"rgba(167,139,250,0.1)":"#f3f0ff",
-                borderRadius:12,border:`1px solid ${isDark?"rgba(167,139,250,0.3)":"#c4b5fd"}`}}>
-                <div style={{fontSize:13,color:"#a78bfa",fontWeight:700,marginBottom:10}}>
-                  📅 약속 일시
-                </div>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}>
-                  <input
-                    type="date"
-                    value={wApptDate}
-                    onChange={e=>setWApptDate(e.target.value)}
-                    autoComplete="off"
-                    style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
-                      borderRadius:8,padding:"9px 10px",color:c.text,fontFamily:ff,
-                      fontSize:"16px",outline:"none"}}
-                  />
-                  <input
-                    type="time"
-                    value={wApptTime}
-                    onChange={e=>setWApptTime(e.target.value)}
-                    autoComplete="off"
-                    style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
-                      borderRadius:8,padding:"9px 10px",color:c.text,fontFamily:ff,
-                      fontSize:"16px",outline:"none"}}
-                  />
-                </div>
-
-                {/* ── [수정3] 미리알림 옵션 3가지 선택 버튼 ── */}
-                <div style={{fontSize:12,color:"#a78bfa",fontWeight:600,marginBottom:8}}>
-                  ⏰ 미리알림
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  {REMINDER_OPTIONS.map(opt=>(
-                    <button key={opt.value}
-                      onClick={()=>setWReminder(opt.value)}
-                      style={{
-                        flex:1,
-                        padding:"8px 4px",
-                        borderRadius:10,
-                        border:`1.5px solid ${wReminder===opt.value ? "#a78bfa" : c.border}`,
-                        background: wReminder===opt.value
-                          ? (isDark ? "rgba(167,139,250,0.25)" : "#ede9fe")
-                          : c.surface2,
-                        color: wReminder===opt.value ? "#a78bfa" : c.muted,
-                        fontFamily:ff,
-                        fontSize:13,
-                        fontWeight: wReminder===opt.value ? 700 : 400,
-                        cursor:"pointer",
-                        transition:"all 0.15s",
-                      }}>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 제목 입력 */}
-            <input
-              type="text"
-              value={wTitle}
-              onChange={e=>setWTitle(e.target.value)}
-              placeholder="제목"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-              style={{
-                display:"block", width:"100%",
-                background:"transparent", border:"none",
-                borderBottom:`2px solid ${cl}`,
-                padding:"10px 0", marginBottom:16,
-                fontFamily:ff, fontSize:"18px", fontWeight:700,
-                color:c.text, outline:"none",
-              }}
-            />
-
-            {/* 내용 입력 - rows로 높이 제어, overflow:visible로 부모 스크롤 보장 */}
-            <textarea
-              value={wContent}
-              onChange={e=>setWContent(e.target.value)}
-              placeholder="내용을 입력하세요..."
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-              rows={Math.max(10, wContent.split("\n").length + 3)}
-              style={{
-                display:"block", width:"100%",
-                background:"transparent", border:"none",
-                resize:"none", fontFamily:ff,
-                fontSize:"16px", lineHeight:1.9,
-                color:c.text, outline:"none",
-                overflow:"hidden",
-              }}
-            />
-
-            {/* 사진 목록 */}
-            {wImages.length>0 && (
-              <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
-                {wImages.map((img,i)=>(
-                  <div key={i} style={{position:"relative",width:"100%"}}>
-                    <img src={img} alt=""
-                      style={{
-                        width:"100%", height:"auto",
-                        maxHeight:360, objectFit:"cover",
-                        borderRadius:14,
-                        border:`1.5px solid ${c.border}`,
-                        display:"block",
-                      }}/>
-                    <button onClick={()=>setWImages(p=>p.filter((_,j)=>j!==i))}
-                      style={{
-                        position:"absolute", top:8, right:8,
-                        background:"rgba(0,0,0,0.55)", color:"#fff",
-                        border:"none", borderRadius:"50%",
-                        width:30, height:30, cursor:"pointer",
-                        fontSize:18, lineHeight:"30px", textAlign:"center",
-                        fontWeight:700,
-                      }}>×</button>
-                  </div>
-                ))}
-                <button onClick={()=>fileRef.current?.click()}
-                  style={{
-                    width:"100%", padding:"14px",
-                    background:c.surface2,
-                    border:`2px dashed ${c.border}`,
-                    borderRadius:14, cursor:"pointer",
-                    display:"flex", alignItems:"center",
-                    justifyContent:"center", gap:8,
-                    color:c.muted, fontFamily:ff, fontSize:14,
-                  }}>
-                  <span style={{fontSize:20}}>📷</span>
-                  <span>사진 추가</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* 하단 버튼 영역 - 스크롤 내부에 자연스럽게 포함 */}
-          <div style={{
-            margin:"20px 16px 0",
-            padding:"14px 0",
-            borderTop:`1px solid ${c.border}`,
-            display:"flex", gap:8,
-            justifyContent:"flex-end", alignItems:"center",
-          }}>
-            {editMemo && (
-              <button onClick={()=>doShare(editMemo)}
-                style={{background:"#FEE500",color:"#3C1E1E",border:"none",
-                  borderRadius:10,padding:"10px 14px",cursor:"pointer",
-                  fontFamily:ff,fontWeight:700,fontSize:14,marginRight:"auto"}}>
-                💬 공유
-              </button>
-            )}
-            <GBtn ch="취소" onClick={()=>setScreen("main")}/>
-            <GBtn ch="📷" onClick={()=>fileRef.current?.click()}/>
-            <input ref={fileRef} type="file" accept="image/*" multiple
-              onChange={onImg} style={{display:"none"}}/>
-            <PBtn ch="저장" onClick={doSave}/>
-          </div>
-
-          <div style={{textAlign:"center",fontSize:11,color:c.muted,padding:"16px 0 24px"}}>
-            작은앱공방
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ════════════════════════════════════════════════════
-  // 설정 화면
-  // ════════════════════════════════════════════════════
-  if (screen==="settings") {
-    const Sec = ({t}) => (
-      <div style={{fontSize:11,color:c.muted,fontWeight:700,letterSpacing:1,
-        textTransform:"uppercase",marginTop:24,marginBottom:8,fontFamily:ff}}>{t}</div>
-    );
-    const Row = ({icon,label,right}) => (
-      <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,
-        padding:"14px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {icon && <span style={{fontSize:18}}>{icon}</span>}
-          <span style={{fontSize:15,color:c.text,fontFamily:ff}}>{label}</span>
-        </div>
-        {right}
-      </div>
-    );
-    const Toggle = ({val,onChange}) => (
-      <button onClick={()=>onChange(!val)}
-        style={{background:val?c.accent:"#4b5563",border:"none",borderRadius:20,
-          width:48,height:28,cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-        <div style={{width:22,height:22,background:"#fff",borderRadius:"50%",
-          position:"absolute",top:3,left:val?23:3,transition:"left 0.2s"}}/>
-      </button>
-    );
-    return (
-      <div style={{fontFamily:ff,background:c.bg,color:c.text,
-        width:"100%",height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <TopBar
-          left={
-            <button onClick={()=>setScreen("main")}
-              style={{background:"none",border:"none",color:c.accent,
-                cursor:"pointer",fontFamily:ff,fontSize:16,padding:"4px 0"}}>
-              ‹ 뒤로
-            </button>
-          }
-          title="설정"
-          right={null}
-        />
-        <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"4px 16px 40px"}}>
-          <Sec t="테마"/>
-          <Row icon="🌙" label="다크 모드" right={<Toggle val={isDark} onChange={setIsDark}/>}/>
-
-          <Sec t="폰트"/>
-          <Row icon="🔤" label="폰트" right={
-            <select value={font} onChange={e=>setFont(e.target.value)}
-              style={{background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,
-                padding:"6px 8px",color:c.text,fontFamily:ff}}>
-              {FONTS.map(f=><option key={f} value={f}>{f}</option>)}
-            </select>
-          }/>
-          <Row icon="🔡" label="글씨 크기" right={
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <button onClick={()=>setFSize(s=>Math.max(12,s-1))}
-                style={{background:c.surface2,border:`1px solid ${c.border}`,color:c.text,
-                  borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:ff,fontSize:16}}>−</button>
-              <span style={{color:c.text,minWidth:28,textAlign:"center",fontFamily:ff}}>{fSize}</span>
-              <button onClick={()=>setFSize(s=>Math.min(22,s+1))}
-                style={{background:c.surface2,border:`1px solid ${c.border}`,color:c.text,
-                  borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:ff,fontSize:16}}>+</button>
-            </div>
-          }/>
-
-          <Sec t="메모 종류"/>
-          <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,
-            padding:"12px 14px",marginBottom:8}}>
-            {cats.map(cat=>{
-              const mt=CAT_META[cat], cl=mt?.color||"#94a3b8";
-              return (
-                <div key={cat} style={{display:"flex",justifyContent:"space-between",
-                  alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${c.border}`}}>
-                  <span style={{color:c.text,fontSize:15,display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{width:10,height:10,borderRadius:"50%",
-                      background:cl,display:"inline-block"}}/>
-                    {mt?.icon||"🗂️"} {cat}
-                  </span>
-                  {!DEFAULT_CATS.includes(cat) && (
-                    <button onClick={()=>setCats(p=>p.filter(x=>x!==cat))}
-                      style={{background:"none",border:"none",color:c.danger,
-                        cursor:"pointer",fontSize:20,lineHeight:1}}>×</button>
-                  )}
-                </div>
-              );
-            })}
-            <div style={{display:"flex",gap:8,marginTop:12}}>
-              <input value={newCat} onChange={e=>setNewCat(e.target.value)}
-                onKeyDown={e=>{
-                  if(e.key==="Enter"&&newCat.trim()&&!cats.includes(newCat.trim())) {
-                    setCats(p=>[...p,newCat.trim()]); setNewCat("");
-                  }
-                }}
-                placeholder="새 종류 추가..."
-                style={{flex:1,background:c.surface2,border:`1px solid ${c.border}`,
-                  borderRadius:8,padding:"10px",color:c.text,fontFamily:ff,outline:"none"}}/>
-              <PBtn ch="추가" onClick={()=>{
-                if(newCat.trim()&&!cats.includes(newCat.trim())) {
-                  setCats(p=>[...p,newCat.trim()]); setNewCat("");
-                }
-              }} style={{padding:"10px 14px"}}/>
-            </div>
-          </div>
-
-          <Sec t="공유"/>
-          <div onClick={()=>{
-            if(navigator.share) navigator.share({title:"메모장",url:window.location.href});
-            else alert("카카오톡 앱 연동은 실제 배포 시 설정됩니다.");
-          }}
-            style={{background:"#FEE500",borderRadius:12,padding:"14px",cursor:"pointer",
-              display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <span style={{fontSize:20}}>💬</span>
-            <span style={{color:"#3C1E1E",fontWeight:700,fontSize:15,fontFamily:ff}}>카카오톡으로 공유하기</span>
-          </div>
-
-          <Sec t="데이터"/>
-          <Row icon="📊" label={`저장된 메모: ${memos.length}개`} right={null}/>
-          {/* 내보내기 - JSON 파일로 다운로드 */}
-          <div onClick={()=>{
-            const data = {
-              version: "1.0",
-              exportedAt: new Date().toLocaleString("ko-KR"),
-              memos: memos.map(m=>({...m, date: m.date.toISOString()})),
-            };
-            const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `메모장_백업_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            alert(`✅ 내보내기 완료!
-${memos.length}개 메모가 저장됐어요.
-파일을 안전한 곳에 보관해주세요.`);
-          }}
-            style={{background:c.surface,border:`1px solid ${c.accent}`,borderRadius:12,
-              padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <span style={{fontSize:18}}>📤</span>
-            <div>
-              <div style={{color:c.accent,fontSize:15,fontWeight:600,fontFamily:ff}}>내보내기 (JSON 다운로드)</div>
-              <div style={{color:c.muted,fontSize:12,marginTop:2}}>전체 메모를 파일로 내보내기</div>
-            </div>
-          </div>
-
-          {/* 복원 - JSON 파일에서 불러오기 */}
-          <div onClick={()=>{
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = ".json";
-            input.onchange = e => {
-              const file = e.target.files[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = ev => {
-                try {
-                  const data = JSON.parse(ev.target.result);
-                  if (!data.memos || !Array.isArray(data.memos)) {
-                    alert("❌ 올바른 백업 파일이 아니에요.");
-                    return;
-                  }
-                  const restored = data.memos.map(m=>({...m, date: new Date(m.date)}));
-                  if (window.confirm(`가져온 파일에서 ${restored.length}개 메모를 복원할까요?
-현재 메모와 합쳐집니다.`)) {
-                    // 기존 메모와 합치되 id 중복 제거
-                    const existingIds = new Set(memos.map(m=>m.id));
-                    const newMemos = [...memos, ...restored.filter(m=>!existingIds.has(m.id))];
-                    newMemos.sort((a,b)=>b.date-a.date);
-                    setMemos(newMemos);
-                    saveMemos(newMemos);
-                    alert(`✅ 복원 완료!
-${restored.length}개 메모를 불러왔어요.`);
-                  }
-                } catch {
-                  alert("❌ 파일을 읽는 중 오류가 발생했어요.");
-                }
-              };
-              reader.readAsText(file);
-            };
-            input.click();
-          }}
-            style={{background:c.surface,border:`1px solid ${c.accent}`,borderRadius:12,
-              padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <span style={{fontSize:18}}>📥</span>
-            <div>
-              <div style={{color:c.accent,fontSize:15,fontWeight:600,fontFamily:ff}}>가져오기 (파일에서 불러오기)</div>
-              <div style={{color:c.muted,fontSize:12,marginTop:2}}>가져온 파일로 메모 복구</div>
-            </div>
-          </div>
-
-          {/* 전체 삭제 */}
-          <div onClick={()=>{
-            if(window.confirm("모든 메모를 삭제할까요?
-
-삭제 전 내보내기를 먼저 해두세요!")) {
-              setMemos([]); saveMemos([]);
-            }
-          }}
-            style={{background:c.surface,border:`1px solid ${c.danger}`,borderRadius:12,
-              padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:18}}>🗑️</span>
-            <span style={{color:c.danger,fontSize:15,fontWeight:600,fontFamily:ff}}>모든 메모 삭제</span>
-          </div>
-
-          <div style={{textAlign:"center",marginTop:32,fontSize:12,color:c.muted}}>
-            메모장 v1.0 · 작은앱공방
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+// ── 화면 전환 ─────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+  document.getElementById('screen-'+name).classList.add('active');
+  if (name==='main')     { renderAll(); }
+  if (name==='settings') { renderSettings(); }
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+// ═══════════════════════════════════════════════════
+// 캘린더
+// ═══════════════════════════════════════════════════
+function renderCalendar() {
+  var y=calDate.getFullYear(), mo=calDate.getMonth();
+  var first=new Date(y,mo,1).getDay(), days=new Date(y,mo+1,0).getDate();
+  var mp = {};
+  memos.forEach(function(m){ var d=m.date; mp[d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()]=true; });
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/memoapp/sw.js")
-      .then(r => console.log("SW 등록 완료:", r.scope))
-      .catch(e => console.log("SW 오류:", e));
+  var html = '<div class="calendar">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<button onclick="calPrev()" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;padding:0 10px">‹</button>'
+    +'<span style="font-weight:700;font-size:14px">'+y+'년 '+(mo+1)+'월</span>'
+    +'<button onclick="calNext()" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;padding:0 10px">›</button>'
+    +'</div>'
+    +'<div class="cal-grid" style="margin-bottom:2px">';
+  ['일','월','화','수','목','금','토'].forEach(function(d,i){
+    html += '<div class="cal-day-label'+(i===0?' sun':i===6?' sat':'')+'">'+d+'</div>';
+  });
+  html += '</div><div class="cal-grid">';
+  for (var i=0;i<first;i++) html+='<div></div>';
+  for (var d=1;d<=days;d++) {
+    var isToday=sameDay(new Date(y,mo,d),new Date());
+    var hasMemo=mp[y+'-'+mo+'-'+d];
+    var col=(first+d-1)%7;
+    var cls='cal-cell'+(isToday?' today':'')+((!isToday&&col===0)?' sun':'')+((!isToday&&col===6)?' sat':'');
+    html+='<div class="'+cls+'" onclick="onCalDay('+y+','+mo+','+d+')">'
+      +'<div class="cal-num">'+d+'</div>'
+      +'<div class="cal-dot-row">'+(hasMemo?'<div class="cal-dot"></div>':'')+'</div>'
+      +'</div>';
+  }
+  html += '</div></div>';
+  document.getElementById('calendar-wrap').innerHTML = html;
+}
+function calPrev() { calDate=new Date(calDate.getFullYear(),calDate.getMonth()-1,1); renderCalendar(); }
+function calNext() { calDate=new Date(calDate.getFullYear(),calDate.getMonth()+1,1); renderCalendar(); }
+function onCalDay(y,mo,d) { openCatPop(new Date(y,mo,d)); }
+
+// ═══════════════════════════════════════════════════
+// 메모 목록
+// ═══════════════════════════════════════════════════
+function getSorted() { return memos.slice().sort(function(a,b){ return b.date-a.date; }); }
+
+function memoCardHTML(m) {
+  var mt=CAT_META[m.category]||{icon:'🗂️',color:'#94a3b8'};
+  var imgBadge=m.images&&m.images.length>0?'<div style="font-size:12px;color:#64748b;margin-top:4px">📷 '+m.images.length+'장</div>':'';
+  var wBadge=m.weather?'<span style="font-size:13px">'+m.weather.i+'</span>':'';
+  return '<div class="memo-card" style="border-left:4px solid '+mt.color+'" data-id="'+m.id+'">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+    +'<div style="display:flex;align-items:center;gap:6px">'
+    +'<span class="cat-tag" style="color:'+mt.color+'">'+mt.icon+' '+esc(m.category)+'</span>'+wBadge
+    +'</div>'
+    +'<span style="font-size:12px;color:#64748b">'+(m.date.getMonth()+1)+'/'+m.date.getDate()+'</span>'
+    +'</div>'
+    +'<div style="font-weight:700;font-size:15px;margin-bottom:4px">'+esc(m.title)+'</div>'
+    +'<div style="font-size:13px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(esc(m.content)||'(내용 없음)')+'</div>'
+    +imgBadge+'</div>';
+}
+
+function attachCardEvents(container) {
+  (container||document).querySelectorAll('.memo-card').forEach(function(card){
+    var id=Number(card.dataset.id);
+    card.addEventListener('click', function(){ if(longPressId!==id) openEdit(id); });
+    card.addEventListener('touchstart', function(){ startLP(id); }, {passive:true});
+    card.addEventListener('touchend',   endLP, {passive:true});
+    card.addEventListener('touchmove',  endLP, {passive:true});
+    card.addEventListener('mousedown',  function(){ startLP(id); });
+    card.addEventListener('mouseup',    endLP);
+    card.addEventListener('mouseleave', endLP);
   });
 }
+function startLP(id) { longPressTimer=setTimeout(function(){ longPressId=id; openLongPress(id); },500); }
+function endLP()     { clearTimeout(longPressTimer); setTimeout(function(){ longPressId=null; },100); }
+
+function renderMemoList() {
+  var filtered=getSorted();
+  var visible=filtered.slice(0,showCount);
+  var hasMore=filtered.length>showCount;
+  document.getElementById('memo-count').textContent=
+    filtered.length>showCount?'전체 '+filtered.length+'개 중 '+showCount+'개':'전체 '+filtered.length+'개';
+
+  if (filtered.length===0) {
+    document.getElementById('memo-list').innerHTML='<div class="empty"><div style="font-size:44px;margin-bottom:12px">📓</div><div style="font-size:14px;line-height:1.8">아직 메모가 없어요<br>첫 메모를 작성해보세요!</div></div>';
+    document.getElementById('loadmore-wrap').innerHTML='';
+    return;
+  }
+  document.getElementById('memo-list').innerHTML=visible.map(memoCardHTML).join('');
+  attachCardEvents(document.getElementById('memo-list'));
+
+  document.getElementById('loadmore-wrap').innerHTML=hasMore
+    ?'<div style="text-align:center;padding:8px 0 4px"><button onclick="loadMore()" style="background:transparent;border:1px solid #2d3154;border-radius:20px;padding:8px 28px;font-size:13px;color:#64748b;cursor:pointer">더보기 ('+(filtered.length-showCount)+'개 남음)</button></div>'
+    :filtered.length>20?'<div style="text-align:center;padding:4px 0"><button onclick="showCount=20;renderMemoList()" style="background:transparent;border:none;font-size:12px;color:#64748b;cursor:pointer">▲ 접기</button></div>':'';
+}
+function loadMore() { showCount+=20; renderMemoList(); }
+function renderAll() { renderCalendar(); renderMemoList(); }
+
+// ═══════════════════════════════════════════════════
+// 카테고리 팝업
+// ═══════════════════════════════════════════════════
+function openCatPop(date) {
+  catPopDate=date;
+  document.getElementById('cat-pop-date').textContent=date?fmtDate(date):'';
+  document.getElementById('cat-pop-grid').innerHTML=settings.cats.map(function(cat){
+    var mt=CAT_META[cat]||{icon:'🗂️',color:'#94a3b8'};
+    return '<button class="cat-btn" style="border-color:'+mt.color+'" onclick="startWrite(\''+cat+'\')"><span style="font-size:26px">'+mt.icon+'</span><span>'+cat+'</span></button>';
+  }).join('');
+  document.getElementById('overlay-cat').classList.remove('hidden');
+}
+function closeCatPop() { document.getElementById('overlay-cat').classList.add('hidden'); }
+
+// ═══════════════════════════════════════════════════
+// 쓰기 화면
+// ═══════════════════════════════════════════════════
+function startWrite(cat) {
+  closeCatPop();
+  editId=null; writeCat=cat; writeImages=[];
+  writeApptDate=''; writeApptTime=''; writeReminder=60;
+  writeDate=catPopDate||new Date();
+  renderWriteScreen(false);
+  showScreen('write');
+}
+function openEdit(id) {
+  var m=memos.find(function(x){ return x.id===id; });
+  if (!m) return;
+  editId=id; writeCat=m.category; writeImages=(m.images||[]).slice();
+  writeApptDate=m.apptDate||''; writeApptTime=m.apptTime||'';
+  writeReminder=m.reminder!=null?m.reminder:60; writeDate=m.date;
+  renderWriteScreen(true);
+  document.getElementById('write-title').value=m.title;
+  document.getElementById('write-content').value=m.content;
+  autoResize(document.getElementById('write-content'));
+  showScreen('write');
+}
+function renderWriteScreen(isEdit) {
+  var mt=CAT_META[writeCat]||{icon:'🗂️',color:'#94a3b8'};
+  document.getElementById('write-topbar-title').textContent=mt.icon+' '+writeCat;
+  document.getElementById('write-title').style.borderBottomColor=mt.color;
+  document.getElementById('write-date').textContent=fmtDate(writeDate);
+  if (!isEdit) {
+    document.getElementById('write-title').value='';
+    document.getElementById('write-content').value='';
+  }
+  document.getElementById('write-delete-btn').style.display=isEdit?'flex':'none';
+  document.getElementById('write-share-btn').style.display=isEdit?'block':'none';
+  // 날씨
+  document.getElementById('weather-wrap').innerHTML='';
+  if (writeCat==='일기') renderWeatherBadge();
+  // 약속
+  document.getElementById('appt-wrap').innerHTML='';
+  if (writeCat==='약속') renderApptBox();
+  // 이미지
+  renderImgList();
+}
+
+// ── 날씨 ──────────────────────────────────────────
+function renderWeatherBadge() {
+  var wrap=document.getElementById('weather-wrap');
+  if (weatherData) {
+    wrap.innerHTML='<div class="weather-badge"><span style="font-size:28px">'+weatherData.i+'</span><div><div style="font-size:14px;font-weight:700">'+weatherData.l+'</div><div style="font-size:12px;color:#64748b">'+(weatherData.city?weatherData.city+' · ':'')+weatherData.tmin+'° ~ '+weatherData.tmax+'°C</div></div></div>';
+  } else {
+    wrap.innerHTML='<button class="weather-btn" onclick="fetchWeather()">📍 날씨 불러오기</button>';
+  }
+}
+function fetchWeather() {
+  var wrap=document.getElementById('weather-wrap');
+  wrap.innerHTML='<div style="padding:10px 0;color:#64748b;font-size:14px;margin-bottom:16px">🌀 날씨 불러오는 중...</div>';
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat=pos.coords.latitude, lon=pos.coords.longitude;
+      var city='';
+      var geoReq=new XMLHttpRequest();
+      geoReq.open('GET','https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lon+'&format=json&accept-language=ko');
+      geoReq.setRequestHeader('User-Agent','MemoApp/1.0');
+      geoReq.onload=function(){
+        try { var gd=JSON.parse(geoReq.responseText); city=gd.address&&(gd.address.city||gd.address.town||gd.address.county)||''; } catch(e){}
+        var wReq=new XMLHttpRequest();
+        wReq.open('GET','https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1');
+        wReq.onload=function(){
+          try {
+            var data=JSON.parse(wReq.responseText);
+            var code=data.daily.weathercode[0];
+            weatherData=Object.assign({},getWMO(code),{tmin:Math.round(data.daily.temperature_2m_min[0]),tmax:Math.round(data.daily.temperature_2m_max[0]),city:city});
+            renderWeatherBadge();
+          } catch(e){ wrap.innerHTML='<button class="weather-btn" onclick="fetchWeather()">⚠️ 날씨 오류 · 다시 시도</button>'; }
+        };
+        wReq.onerror=function(){ wrap.innerHTML='<button class="weather-btn" onclick="fetchWeather()">⚠️ 날씨 오류 · 다시 시도</button>'; };
+        wReq.send();
+      };
+      geoReq.onerror=function(){
+        var wReq=new XMLHttpRequest();
+        wReq.open('GET','https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1');
+        wReq.onload=function(){
+          try {
+            var data=JSON.parse(wReq.responseText);
+            weatherData=Object.assign({},getWMO(data.daily.weathercode[0]),{tmin:Math.round(data.daily.temperature_2m_min[0]),tmax:Math.round(data.daily.temperature_2m_max[0]),city:''});
+            renderWeatherBadge();
+          } catch(e){ wrap.innerHTML='<button class="weather-btn" onclick="fetchWeather()">⚠️ 날씨 오류 · 다시 시도</button>'; }
+        };
+        wReq.send();
+      };
+      geoReq.send();
+    },
+    function(e){ wrap.innerHTML='<button class="weather-btn" onclick="fetchWeather()">⚠️ '+(e.code===1?'위치 권한 필요':'날씨 오류')+' · 다시 시도</button>'; },
+    {timeout:8000}
+  );
+}
+
+// ── 약속 박스 ──────────────────────────────────────
+function renderApptBox() {
+  var rem=[{v:180,l:'3시간 전'},{v:60,l:'1시간 전'},{v:30,l:'30분 전'}];
+  document.getElementById('appt-wrap').innerHTML='<div class="appt-box">'
+    +'<div style="font-size:13px;color:#a78bfa;font-weight:700;margin-bottom:10px">📅 약속 일시</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+    +'<input class="appt-input" type="date" id="appt-date" value="'+writeApptDate+'" onchange="writeApptDate=this.value" autocomplete="off"/>'
+    +'<input class="appt-input" type="time" id="appt-time" value="'+writeApptTime+'" onchange="writeApptTime=this.value" autocomplete="off"/>'
+    +'</div>'
+    +'<div style="font-size:12px;color:#a78bfa;font-weight:600;margin-bottom:8px">⏰ 미리알림</div>'
+    +'<div style="display:flex;gap:8px">'
+    +rem.map(function(r){ return '<button class="reminder-btn'+(writeReminder===r.v?' active':'')+'" onclick="setReminder('+r.v+')">'+r.l+'</button>'; }).join('')
+    +'</div></div>';
+}
+function setReminder(v) {
+  writeReminder=v;
+  var ad=document.getElementById('appt-date'), at=document.getElementById('appt-time');
+  if(ad) writeApptDate=ad.value;
+  if(at) writeApptTime=at.value;
+  renderApptBox();
+  setTimeout(function(){
+    var ad2=document.getElementById('appt-date'), at2=document.getElementById('appt-time');
+    if(ad2) ad2.value=writeApptDate;
+    if(at2) at2.value=writeApptTime;
+  },0);
+}
+
+// ── 이미지 ────────────────────────────────────────
+function renderImgList() {
+  var list=document.getElementById('img-list');
+  if (!list) return;
+  if (writeImages.length===0) { list.innerHTML=''; return; }
+  list.innerHTML=writeImages.map(function(img,i){
+    return '<div class="img-wrap"><img src="'+img+'" alt=""/><button class="img-del" onclick="removeImg('+i+')">×</button></div>';
+  }).join('')
+  +'<button class="add-photo-btn" onclick="fileInput.click()"><span style="font-size:20px">📷</span><span>사진 추가</span></button>';
+}
+function removeImg(i) { writeImages.splice(i,1); renderImgList(); }
+function onImgSelect(input) {
+  var MAX=800,Q=0.7;
+  Array.from(input.files).forEach(function(f){
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var img=new Image();
+      img.onload=function(){
+        var w=img.width,h=img.height;
+        if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        writeImages.push(cv.toDataURL('image/jpeg',Q));
+        renderImgList();
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(f);
+  });
+  input.value='';
+}
+function autoResize(el) { el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
+
+// ── 저장/삭제/공유 ───────────────────────────────
+function doSave() {
+  var title=document.getElementById('write-title').value.trim();
+  var content=document.getElementById('write-content').value;
+  if (!title&&!content) return;
+  var ad=document.getElementById('appt-date'), at=document.getElementById('appt-time');
+  if(ad) writeApptDate=ad.value;
+  if(at) writeApptTime=at.value;
+  var m={
+    id: editId||Date.now(), category:writeCat, date:writeDate||new Date(),
+    title:title||'(제목 없음)', content:content,
+    weather: writeCat==='일기'?weatherData:undefined,
+    images: writeImages.slice(),
+    apptDate: writeCat==='약속'?writeApptDate:undefined,
+    apptTime: writeCat==='약속'?writeApptTime:undefined,
+    reminder: writeCat==='약속'?writeReminder:undefined
+  };
+  var updated=editId?memos.map(function(x){ return x.id===m.id?m:x; }):[m].concat(memos);
+  saveMemos(updated);
+  if(writeCat==='약속'&&writeApptDate&&writeApptTime) scheduleNotif(m);
+  showScreen('main');
+}
+function deleteCurrent() {
+  var m=memos.find(function(x){ return x.id===editId; });
+  if(!m) return;
+  if(!confirm('"'+m.title+'"\n\n이 메모를 삭제할까요?')) return;
+  cancelNotif(editId);
+  saveMemos(memos.filter(function(x){ return x.id!==editId; }));
+  showScreen('main');
+}
+function shareMemo(m) {
+  var mt=CAT_META[m.category]||{};
+  var wLine=m.weather?'\n날씨: '+m.weather.i+' '+m.weather.l+' '+m.weather.tmin+'°~'+m.weather.tmax+'°C':'';
+  var aLine=m.apptDate&&m.apptTime?'\n약속일시: '+m.apptDate+' '+m.apptTime:'';
+  var txt=[fmtDate(m.date),'['+(mt.icon||'')+m.category+'] '+m.title,wLine||null,aLine||null,m.content,'- 작은앱공방 · 강종훈'].filter(Boolean).join('\n\n');
+  if(navigator.share) navigator.share({title:'',text:txt});
+  else { if(navigator.clipboard) navigator.clipboard.writeText(txt); alert('클립보드에 복사됐어요!'); }
+}
+function shareCurrent() { var m=memos.find(function(x){ return x.id===editId; }); if(m) shareMemo(m); }
+
+// ═══════════════════════════════════════════════════
+// 검색
+// ═══════════════════════════════════════════════════
+function openSearch() {
+  filterCat='전체'; renderSearchFilters();
+  document.getElementById('search-input').value='';
+  document.getElementById('search-clear').style.display='none';
+  document.getElementById('search-list').innerHTML='';
+  showScreen('search');
+  setTimeout(function(){ document.getElementById('search-input').focus(); },100);
+}
+function closeSearch() { showScreen('main'); }
+function clearSearch() { document.getElementById('search-input').value=''; document.getElementById('search-clear').style.display='none'; doSearch(); }
+function doSearch() {
+  var q=document.getElementById('search-input').value;
+  document.getElementById('search-clear').style.display=q?'block':'none';
+  var filtered=memos.filter(function(m){
+    return (!q.trim()||(m.title+m.content).includes(q))&&(filterCat==='전체'||m.category===filterCat);
+  }).sort(function(a,b){ return b.date-a.date; });
+  if(filtered.length===0){
+    document.getElementById('search-list').innerHTML='<div class="empty"><div style="font-size:44px;margin-bottom:12px">🔍</div><div style="font-size:14px">검색 결과가 없어요</div></div>';
+    return;
+  }
+  document.getElementById('search-list').innerHTML=filtered.map(memoCardHTML).join('');
+  document.querySelectorAll('#search-list .memo-card').forEach(function(card){
+    var id=Number(card.dataset.id);
+    card.addEventListener('click',function(){ openEdit(id); });
+  });
+}
+function renderSearchFilters() {
+  var cats=['전체'].concat(settings.cats);
+  document.getElementById('search-cat-filters').innerHTML=cats.map(function(cat){
+    var mt=cat==='전체'?null:(CAT_META[cat]||{});
+    return '<button class="cat-filter-btn'+(cat===filterCat?' active':'')+'" onclick="setFilterCat(\''+cat+'\')">'+(cat==='전체'?'전체':(mt.icon||'')+' '+cat)+'</button>';
+  }).join('');
+}
+function setFilterCat(cat) { filterCat=cat; renderSearchFilters(); doSearch(); }
+
+// ═══════════════════════════════════════════════════
+// 롱프레스 팝업
+// ═══════════════════════════════════════════════════
+function openLongPress(id) {
+  var m=memos.find(function(x){ return x.id===id; });
+  if(!m) return;
+  var mt=CAT_META[m.category]||{icon:'🗂️',color:'#94a3b8'};
+  document.getElementById('longpress-cat').innerHTML='<span style="color:'+mt.color+'">'+mt.icon+' '+esc(m.category)+'</span>';
+  document.getElementById('longpress-title').textContent=m.title;
+  document.getElementById('overlay-longpress').classList.remove('hidden');
+}
+function closeLongPress() { document.getElementById('overlay-longpress').classList.add('hidden'); longPressId=null; }
+function longPressShare() { var id=longPressId, m=memos.find(function(x){ return x.id===id; }); closeLongPress(); if(m) shareMemo(m); }
+function longPressDelete() {
+  var id=longPressId, m=memos.find(function(x){ return x.id===id; });
+  closeLongPress();
+  if(!m) return;
+  if(confirm('"'+m.title+'"\n\n이 메모를 삭제할까요?')){ cancelNotif(id); saveMemos(memos.filter(function(x){ return x.id!==id; })); renderMemoList(); }
+}
+
+// ═══════════════════════════════════════════════════
+// 설정
+// ═══════════════════════════════════════════════════
+function renderSettings() {
+  document.getElementById('dark-toggle').checked=settings.isDark;
+  document.getElementById('font-select').value=settings.font;
+  document.getElementById('font-size-val').textContent=settings.fontSize;
+  document.getElementById('memo-count-settings').textContent='저장된 메모: '+memos.length+'개';
+  renderCatListSettings();
+}
+function renderCatListSettings() {
+  document.getElementById('cat-list-settings').innerHTML=settings.cats.map(function(cat){
+    var mt=CAT_META[cat]||{icon:'🗂️',color:'#94a3b8'};
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #2d3154">'
+      +'<span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+mt.color+';display:inline-block"></span>'+mt.icon+' '+esc(cat)+'</span>'
+      +(!DEFAULT_CATS.includes(cat)?'<button onclick="removeCat(\''+cat+'\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:20px;line-height:1">×</button>':'')
+      +'</div>';
+  }).join('');
+}
+function toggleDark(v) { settings.isDark=v; saveSettings(); }
+function changeFont(v) { settings.font=v; saveSettings(); document.body.style.fontFamily="'"+v+"', sans-serif"; }
+function changeFontSize(d) {
+  settings.fontSize=Math.min(22,Math.max(12,settings.fontSize+d));
+  document.getElementById('font-size-val').textContent=settings.fontSize;
+  saveSettings();
+}
+function addCat() {
+  var v=document.getElementById('new-cat-input').value.trim();
+  if(!v||settings.cats.includes(v)) return;
+  settings.cats.push(v); saveSettings();
+  document.getElementById('new-cat-input').value='';
+  renderCatListSettings();
+}
+function removeCat(cat) { settings.cats=settings.cats.filter(function(c){ return c!==cat; }); saveSettings(); renderCatListSettings(); }
+function shareApp() { if(navigator.share) navigator.share({title:'메모장',url:window.location.href}); else alert('카카오톡 앱 연동은 실제 배포 시 설정됩니다.'); }
+
+function exportData() {
+  var data={version:'1.0',exportedAt:new Date().toLocaleString('ko-KR'),memos:memos.map(function(m){ return Object.assign({},m,{date:m.date.toISOString()}); })};
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='메모장_백업_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(url);
+  alert('✅ 내보내기 완료!\n'+memos.length+'개 메모가 저장됐어요.\n파일을 안전한 곳에 보관해주세요.');
+}
+function importData() { importInput.click(); }
+function onImportFile(input) {
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try {
+      var data=JSON.parse(ev.target.result);
+      if(!data.memos||!Array.isArray(data.memos)){ alert('❌ 올바른 백업 파일이 아니에요.'); return; }
+      var restored=data.memos.map(function(m){ return Object.assign({},m,{date:new Date(m.date)}); });
+      if(confirm('가져온 파일에서 '+restored.length+'개 메모를 복원할까요?\n현재 메모와 합쳐집니다.')){
+        var existIds=new Set(memos.map(function(m){ return m.id; }));
+        var merged=memos.concat(restored.filter(function(m){ return !existIds.has(m.id); }));
+        merged.sort(function(a,b){ return b.date-a.date; });
+        saveMemos(merged); renderSettings();
+        alert('✅ 복원 완료!\n'+restored.length+'개 메모를 불러왔어요.');
+      }
+    } catch(e){ alert('❌ 파일을 읽는 중 오류가 발생했어요.'); }
+  };
+  reader.readAsText(file); input.value='';
+}
+function deleteAll() {
+  if(confirm('모든 메모를 삭제할까요?\n\n삭제 전 내보내기를 먼저 해두세요!')){ saveMemos([]); renderSettings(); }
+}
+
+// ═══════════════════════════════════════════════════
+// 알림
+// ═══════════════════════════════════════════════════
+function scheduleNotif(m) {
+  if(!('Notification' in window)) return;
+  Notification.requestPermission().then(function(perm){
+    if(perm!=='granted'){ alert('알림 권한이 거부되었습니다.\n기기 설정에서 이 앱의 알림을 허용해주세요.'); return; }
+    var apptMs=new Date(m.apptDate+'T'+m.apptTime).getTime();
+    var notifMs=apptMs-m.reminder*60*1000;
+    var labels={180:'3시간 전',60:'1시간 전',30:'30분 전'};
+    var label=labels[m.reminder]||m.reminder+'분 전';
+    if(notifMs<=Date.now()){ alert('⚠️ 설정한 미리알림 시간('+label+')이 이미 지났어요.'); return; }
+    var stored=JSON.parse(localStorage.getItem('memoapp_notifs')||'[]');
+    var rest=stored.filter(function(n){ return n.id!==m.id; });
+    rest.push({id:m.id,title:'⏰ 약속 '+label+'!',body:m.title,notifTime:notifMs});
+    localStorage.setItem('memoapp_notifs',JSON.stringify(rest));
+    if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({type:'SCHEDULE_NOTIFICATION',id:m.id,title:'⏰ 약속 '+label+'!',body:m.title,notifTime:notifMs});
+    }
+    var ts=new Date(notifMs).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    alert('✅ 알림 설정 완료!\n'+ts+'에 알려드릴게요.');
+  });
+}
+function cancelNotif(id) {
+  var stored=JSON.parse(localStorage.getItem('memoapp_notifs')||'[]');
+  localStorage.setItem('memoapp_notifs',JSON.stringify(stored.filter(function(n){ return n.id!==id; })));
+  if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({type:'CANCEL_NOTIFICATION',id:id});
+  }
+}
+function checkNotifs() {
+  var stored=JSON.parse(localStorage.getItem('memoapp_notifs')||'[]');
+  var now=Date.now(), remaining=[];
+  stored.forEach(function(n){
+    if(now>=n.notifTime&&now<n.notifTime+120000){
+      if(navigator.serviceWorker&&navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage({type:'SHOW_NOW',title:n.title,body:n.body});
+      } else if(Notification.permission==='granted'){
+        new Notification(n.title,{body:n.body,icon:'/memoapp/icons/icon-192x192.png'});
+      }
+    } else if(now<n.notifTime){ remaining.push(n); }
+  });
+  localStorage.setItem('memoapp_notifs',JSON.stringify(remaining));
+}
+
+// ═══════════════════════════════════════════════════
+// 초기화
+// ═══════════════════════════════════════════════════
+(function init(){
+  var s=loadSettings();
+  if(s){
+    settings.isDark   = s.isDark!=null ? s.isDark : true;
+    settings.font     = s.font||'Noto Sans KR';
+    settings.fontSize = s.fontSize||15;
+    settings.cats     = s.categories||s.cats||DEFAULT_CATS.slice();
+  }
+  document.body.style.fontFamily="'"+settings.font+"', sans-serif";
+
+  memos=loadMemos();
+
+  // Apple touch icon
+  var al=document.createElement('link'); al.rel='apple-touch-icon'; al.href='/memoapp/icons/icon-192x192.png';
+  document.head.appendChild(al);
+
+  // IDB 자동복구
+  if(memos.length===0){
+    idbLoad(function(recovered){
+      if(recovered&&recovered.length>0){
+        if(confirm('💾 자동백업 데이터 '+recovered.length+'개를 발견했어요!\n복구할까요?')){
+          saveMemos(recovered); renderAll();
+        }
+      }
+    });
+  }
+
+  renderAll();
+  checkNotifs();
+  setInterval(checkNotifs,60000);
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',function(){
+      navigator.serviceWorker.register('/memoapp/sw.js')
+        .then(function(r){ console.log('SW 등록:',r.scope); })
+        .catch(function(e){ console.log('SW 오류:',e); });
+    });
+  }
+})();
 </script>
 </body>
 </html>
