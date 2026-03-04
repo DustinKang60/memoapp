@@ -105,7 +105,7 @@
     .cat-filter-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 
     .write-title-input { display: block; width: 100%; background: transparent; border: none; border-bottom: 2px solid #3b82f6; padding: 10px 0; margin-bottom: 16px; font-size: 18px; font-weight: 700; color: #e2e8f0; outline: none; }
-    .write-content-input { display: block; width: 100%; background: transparent; border: none; resize: none; font-size: 16px; line-height: 1.9; color: #e2e8f0; outline: none; overflow: visible; min-height: 300px; }
+    .write-content-input { display: block; width: 100%; background: transparent; border: none; resize: none; font-size: 16px; line-height: 1.9; color: #e2e8f0; outline: none; overflow: hidden; }
 
     .weather-btn { padding: 10px 14px; background: #252840; border-radius: 12px; font-size: 14px; color: #64748b; border: 1px solid #2d3154; cursor: pointer; margin-bottom: 16px; display: inline-block; }
     .weather-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(59,130,246,0.12); border-radius: 14px; border: 1px solid rgba(59,130,246,0.3); margin-bottom: 16px; }
@@ -193,7 +193,7 @@
       <div id="weather-wrap"></div>
       <div id="appt-wrap"></div>
       <input class="write-title-input" id="write-title" placeholder="제목" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
-      <textarea class="write-content-input" id="write-content" placeholder="내용을 입력하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ></textarea>
+      <textarea class="write-content-input" id="write-content" placeholder="내용을 입력하세요..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" rows="12" oninput="autoResize(this)"></textarea>
       <div id="img-list"></div>
       <div class="footer" style="padding-bottom:0">작은앱공방</div>
     </div>
@@ -549,6 +549,7 @@ function openEdit(id) {
   renderWriteScreen(true);
   document.getElementById('write-title').value=m.title;
   document.getElementById('write-content').value=m.content;
+  setTimeout(function(){ autoResize(document.getElementById('write-content')); }, 50);
   showScreen('write');
 }
 function renderWriteScreen(isEdit) {
@@ -683,7 +684,10 @@ function onImgSelect(input) {
   });
   input.value='';
 }
-function autoResize(el) { /* disabled */ }
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
 
 // ── 저장/삭제/공유 ───────────────────────────────
 function doSave() {
