@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8"/>
@@ -32,9 +32,8 @@
     }
     ::-webkit-scrollbar { width: 3px; }
     ::-webkit-scrollbar-thumb { background: #2d3154; border-radius: 2px; }
-    /* 상세편집 화면 스크롤바 숨김 - 내용 치우침 방지 */
-    .write-scroll::-webkit-scrollbar { display: none; }
-    .write-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+    /* 상세편집 화면 webkit 스크롤바 숨김 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
     -webkit-tap-highlight-color: transparent;
   </style>
 </head>
@@ -49,6 +48,39 @@ const { useState, useRef, useEffect, useCallback } = React;
 // ─── 상수 ──────────────────────────────────────────────────────
 const STORAGE_KEY  = "memoapp_memos_v3";
 const SETTINGS_KEY = "memoapp_settings_v3";
+
+// ── IndexedDB 이중백업 (캐시/localStorage 삭제해도 살아남음) ──
+function idbSave(memos) {
+  try {
+    const req = indexedDB.open("memoapp_db", 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore("backups");
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction("backups", "readwrite");
+      tx.objectStore("backups").put(
+        JSON.stringify(memos.map(m=>({...m, date: m.date instanceof Date ? m.date.toISOString() : m.date}))),
+        "latest"
+      );
+    };
+  } catch(err) { console.log("IDB저장오류:", err); }
+}
+
+function idbLoad(callback) {
+  try {
+    const req = indexedDB.open("memoapp_db", 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore("backups");
+    req.onsuccess = e => {
+      const get = e.target.result.transaction("backups","readonly").objectStore("backups").get("latest");
+      get.onsuccess = () => {
+        if (get.result) {
+          try { callback(JSON.parse(get.result).map(m=>({...m,date:new Date(m.date)}))); }
+          catch(e) { callback(null); }
+        } else { callback(null); }
+      };
+      get.onerror = () => callback(null);
+    };
+    req.onerror = () => callback(null);
+  } catch(e) { callback(null); }
+}
 const DEFAULT_CATS = ["메모","일기","아이디어","업무","약속"];
 const CAT_META = {
   "메모":     { icon:"📝", color:"#60a5fa" },
@@ -97,7 +129,10 @@ function loadMemos() {
     return r ? JSON.parse(r).map(m=>({...m, date:new Date(m.date)})) : [];
   } catch { return []; }
 }
-function saveMemos(ms) { localStorage.setItem(STORAGE_KEY, JSON.stringify(ms)); }
+function saveMemos(ms) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(ms));
+  idbSave(ms); // IndexedDB에도 이중저장
+}
 function loadSettings() {
   try { const r=localStorage.getItem(SETTINGS_KEY); return r?JSON.parse(r):null; }
   catch { return null; }
@@ -337,6 +372,21 @@ function App() {
     });
   }
 
+  // ── 앱 시작 시 localStorage 비어있으면 IndexedDB에서 자동복구 ──
+  useEffect(() => {
+    if (memos.length === 0) {
+      idbLoad(recovered => {
+        if (recovered && recovered.length > 0) {
+          if (window.confirm(`💾 자동백업 데이터 ${recovered.length}개를 발견했어요!
+복구할까요?`)) {
+            setMemos(recovered);
+            saveMemos(recovered);
+          }
+        }
+      });
+    }
+  }, []);
+
   // 앱 열려있을 때 1분마다 폴링 체크 (백업)
   useEffect(() => {
     const check = () => {
@@ -444,9 +494,10 @@ function App() {
     .sort((a,b)=>b.date-a.date);
 
   const PAGE_SIZE = 20;
-  // 검색화면은 전체 표시, 메인화면은 showCount만큼
-  const visibleMemos = screen === "search" ? filtered : filtered.slice(0, showCount);
-  const hasMore = screen === "main" && filtered.length > showCount;
+  const isMainScreen = screen === "main";
+  // 메인화면만 20개 제한, 검색화면은 전체 표시
+  const visibleMemos = isMainScreen ? filtered.slice(0, showCount) : filtered;
+  const hasMore = isMainScreen && (filtered.length > showCount);
 
   // ── 공통 UI ──────────────────────────────────────────
   const TopBar = ({left,title,right}) => (
@@ -606,11 +657,11 @@ function App() {
             ✏️ 메모작성
           </button>
           <span style={{fontSize:12,color:c.muted}}>
-            {screen==="search"
-              ? `${filtered.length}개`
-              : filtered.length > showCount
+            {isMainScreen
+              ? (filtered.length > showCount
                 ? `전체 ${filtered.length}개 중 ${showCount}개`
-                : `전체 ${filtered.length}개`}
+                : `전체 ${filtered.length}개`)
+              : `${filtered.length}개`}
           </span>
         </div>
 
@@ -678,7 +729,7 @@ function App() {
             </button>
           </div>
         )}
-        {!hasMore && filtered.length > PAGE_SIZE && screen==="main" && (
+        {!hasMore && filtered.length > PAGE_SIZE && isMainScreen && (
           <div style={{textAlign:"center",padding:"4px 0"}}>
             <button
               onClick={()=>setShowCount(PAGE_SIZE)}
@@ -807,14 +858,16 @@ function App() {
         />
 
         {/* 스크롤 영역: minHeight:0 이 핵심 - flex child가 수축 가능해야 스크롤됨 */}
-        <div className="write-scroll" style={{
+        <div style={{
           flex:1,
           minHeight:0,
           overflowY:"auto",
           overflowX:"hidden",
           WebkitOverflowScrolling:"touch",
           overscrollBehavior:"contain",
-        }}>
+          scrollbarWidth:"none",
+          msOverflowStyle:"none",
+        }} className="no-scrollbar">
           <div style={{padding:"16px 20px 0"}}>
 
             {/* 날짜 */}
@@ -1114,8 +1167,97 @@ function App() {
 
           <Sec t="데이터"/>
           <Row icon="📊" label={`저장된 메모: ${memos.length}개`} right={null}/>
+          <div style={{background:isDark?"rgba(251,191,36,0.1)":"#fef9c3",
+            border:"1px solid #f59e0b",borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+            <div style={{fontSize:13,color:"#b45309",fontWeight:600,marginBottom:4}}>⚠️ 데이터 보호 안내</div>
+            <div style={{fontSize:12,color:isDark?"#fcd34d":"#92400e",lineHeight:1.7}}>
+              • 메모는 이 기기에만 저장됩니다{"
+"}
+              • 앱/브라우저 완전 삭제 시 데이터가 사라질 수 있어요{"
+"}
+              • 중요한 데이터는 📤 내보내기로 정기 백업 해두세요
+            </div>
+          </div>
+
+          {/* 백업 - JSON 파일로 다운로드 */}
           <div onClick={()=>{
-            if(window.confirm("모든 메모를 삭제할까요?")) { setMemos([]); saveMemos([]); }
+            const data = {
+              version: "1.0",
+              exportedAt: new Date().toLocaleString("ko-KR"),
+              memos: memos.map(m=>({...m, date: m.date.toISOString()})),
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `메모장_백업_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            alert(`✅ 내보내기 완료!
+${memos.length}개 메모가 저장됐어요.
+파일을 안전한 곳에 보관해주세요.`);
+          }}
+            style={{background:c.surface,border:`1px solid ${c.accent}`,borderRadius:12,
+              padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <span style={{fontSize:18}}>💾</span>
+            <div>
+              <div style={{color:c.accent,fontSize:15,fontWeight:600,fontFamily:ff}}>내보내기 (JSON 다운로드)</div>
+              <div style={{color:c.muted,fontSize:12,marginTop:2}}>전체 메모를 파일로 내보내기</div>
+            </div>
+          </div>
+
+          {/* 복원 - JSON 파일에서 불러오기 */}
+          <div onClick={()=>{
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = ".json";
+            input.onchange = e => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                try {
+                  const data = JSON.parse(ev.target.result);
+                  if (!data.memos || !Array.isArray(data.memos)) {
+                    alert("❌ 올바른 백업 파일이 아니에요.");
+                    return;
+                  }
+                  const restored = data.memos.map(m=>({...m, date: new Date(m.date)}));
+                  if (window.confirm(`가져온 파일에서 ${restored.length}개 메모를 복원할까요?
+현재 메모와 합쳐집니다.`)) {
+                    // 기존 메모와 합치되 id 중복 제거
+                    const existingIds = new Set(memos.map(m=>m.id));
+                    const newMemos = [...memos, ...restored.filter(m=>!existingIds.has(m.id))];
+                    newMemos.sort((a,b)=>b.date-a.date);
+                    setMemos(newMemos);
+                    saveMemos(newMemos);
+                    alert(`✅ 복원 완료!
+${restored.length}개 메모를 불러왔어요.`);
+                  }
+                } catch {
+                  alert("❌ 파일을 읽는 중 오류가 발생했어요.");
+                }
+              };
+              reader.readAsText(file);
+            };
+            input.click();
+          }}
+            style={{background:c.surface,border:`1px solid ${c.accent}`,borderRadius:12,
+              padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <span style={{fontSize:18}}>📂</span>
+            <div>
+              <div style={{color:c.accent,fontSize:15,fontWeight:600,fontFamily:ff}}>가져오기 (파일에서 불러오기)</div>
+              <div style={{color:c.muted,fontSize:12,marginTop:2}}>가져온 파일로 메모 복구</div>
+            </div>
+          </div>
+
+          {/* 전체 삭제 */}
+          <div onClick={()=>{
+            if(window.confirm("모든 메모를 삭제할까요?
+
+삭제 전 내보내기를 먼저 해두세요!")) {
+              setMemos([]); saveMemos([]);
+            }
           }}
             style={{background:c.surface,border:`1px solid ${c.danger}`,borderRadius:12,
               padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
