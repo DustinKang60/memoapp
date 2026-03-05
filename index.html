@@ -417,6 +417,10 @@ function showScreen(name) {
   document.getElementById('screen-'+name).classList.add('active');
   if (name==='main')     { renderAll(); }
   if (name==='settings') { renderSettings(); }
+  // 메인이 아닌 화면으로 갈 때 히스토리 추가 (폰 뒤로가기 대응)
+  if (name !== 'main') {
+    history.pushState({ screen: name }, '');
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -949,8 +953,30 @@ function checkNotifs() {
   }
 
   renderAll();
+  // 초기 히스토리 상태 설정
+  history.replaceState({ screen: 'main' }, '');
   checkNotifs();
   setInterval(checkNotifs,60000);
+
+  // 폰 뒤로가기 버튼 → 메인 화면으로
+  window.addEventListener('popstate', function() {
+    // 오버레이가 열려있으면 닫기
+    if (!document.getElementById('overlay-cat').classList.contains('hidden')) {
+      closeCatPop(); history.pushState({}, ''); return;
+    }
+    if (!document.getElementById('overlay-longpress').classList.contains('hidden')) {
+      closeLongPress(); history.pushState({}, ''); return;
+    }
+    // 메인이 아닌 화면이면 메인으로 이동
+    var active = document.querySelector('.screen.active');
+    if (active && active.id !== 'screen-main') {
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+      document.getElementById('screen-main').classList.add('active');
+      renderAll();
+      // 다시 뒤로가기를 눌러도 앱 안에 머물도록 히스토리 유지
+      history.pushState({}, '');
+    }
+  });
 
   if('serviceWorker' in navigator){
     window.addEventListener('load',function(){
