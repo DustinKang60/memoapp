@@ -491,7 +491,13 @@ function attachCardEvents(container) {
   });
 }
 function startLP(id) { longPressTimer=setTimeout(function(){ longPressId=id; openLongPress(id); },500); }
-function endLP()     { clearTimeout(longPressTimer); setTimeout(function(){ longPressId=null; },100); }
+function endLP() {
+  clearTimeout(longPressTimer);
+  // 오버레이가 열려있으면 longPressId 유지 (버튼 onclick이 touchend보다 늦게 실행됨)
+  if (document.getElementById('overlay-longpress').classList.contains('hidden')) {
+    longPressId = null;
+  }
+}
 
 function renderMemoList() {
   var filtered=getSorted();
