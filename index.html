@@ -779,12 +779,24 @@ function openLongPress(id) {
   document.getElementById('overlay-longpress').classList.remove('hidden');
 }
 function closeLongPress() { document.getElementById('overlay-longpress').classList.add('hidden'); longPressId=null; }
-function longPressShare() { var id=longPressId, m=memos.find(function(x){ return x.id===id; }); closeLongPress(); if(m) shareMemo(m); }
+function longPressShare() {
+  var id=longPressId;  // 먼저 id 저장
+  var m=memos.find(function(x){ return x.id===id; });
+  document.getElementById('overlay-longpress').classList.add('hidden');
+  longPressId=null;
+  if(m) shareMemo(m);
+}
 function longPressDelete() {
-  var id=longPressId, m=memos.find(function(x){ return x.id===id; });
-  closeLongPress();
+  var id=longPressId;  // 먼저 id 저장
+  var m=memos.find(function(x){ return x.id===id; });
+  document.getElementById('overlay-longpress').classList.add('hidden');
+  longPressId=null;
   if(!m) return;
-  if(confirm('"'+m.title+'"\n\n이 메모를 삭제할까요?')){ cancelNotif(id); saveMemos(memos.filter(function(x){ return x.id!==id; })); renderMemoList(); }
+  if(confirm('"'+m.title+'"\n\n이 메모를 삭제할까요?')){
+    cancelNotif(id);
+    saveMemos(memos.filter(function(x){ return x.id!==id; }));
+    renderMemoList();
+  }
 }
 
 // ═══════════════════════════════════════════════════
