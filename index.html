@@ -458,7 +458,7 @@
   function renderCatListSettings(){document.getElementById('cat-list-settings').innerHTML=settings.cats.map(function(cat){var mt=CAT_META[cat]||{icon:'🗂️',color:'#94a3b8'};return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #2d3154"><span style="display:flex;align-items:center;gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:'+mt.color+';display:inline-block"></span>'+mt.icon+' '+esc(cat)+'</span>'+(!DEFAULT_CATS.includes(cat)?'<button onclick="removeCat(\''+cat+'\')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:20px;line-height:1">×</button>':'')+'</div>';}).join('');}
   function toggleDark(v){settings.isDark=v;saveSettings();}
   function changeFont(v){settings.font=v;saveSettings();document.body.style.fontFamily="'"+v+"', sans-serif";}
-  function changeFontSize(d){settings.fontSize=Math.min(22,Math.max(12,settings.fontSize+d));document.getElementById('font-size-val').textContent=settings.fontSize;saveSettings();}
+  function changeFontSize(d){settings.fontSize=Math.min(22,Math.max(12,settings.fontSize+d));document.getElementById('font-size-val').textContent=settings.fontSize;document.body.style.fontSize=settings.fontSize+'px';saveSettings();}
   function addCat(){var v=document.getElementById('new-cat-input').value.trim();if(!v||settings.cats.includes(v))return;settings.cats.push(v);saveSettings();document.getElementById('new-cat-input').value='';renderCatListSettings();}
   function removeCat(cat){settings.cats=settings.cats.filter(function(c){return c!==cat;});saveSettings();renderCatListSettings();}
   function shareApp(){
@@ -516,6 +516,7 @@
     var s=loadSettings();
     if(s){settings.isDark=s.isDark!=null?s.isDark:true;settings.font=s.font||'Noto Sans KR';settings.fontSize=s.fontSize||15;settings.cats=s.categories||s.cats||DEFAULT_CATS.slice();}
     document.body.style.fontFamily="'"+settings.font+"', sans-serif";
+    document.body.style.fontSize=settings.fontSize+'px';
     memos=loadMemos();archived=loadArchived();
     if(memos.length===0){idbLoad(function(recovered){if(recovered&&recovered.length>0){if(confirm('💾 자동백업 데이터 '+recovered.length+'개를 발견했어요!\n복구할까요?')){saveMemos(recovered);renderAll();}}});}
     renderAll();
