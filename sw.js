@@ -1,5 +1,5 @@
 // ─── Service Worker - 메모앱 ───────────────────────────────────
-const CACHE_NAME = "memoapp-v4";
+const CACHE_NAME = "memoapp-v5";
 const ASSETS = [
   "/memoapp/",
   "/memoapp/index.html",

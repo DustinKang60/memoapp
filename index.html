@@ -487,7 +487,7 @@
         navigator.serviceWorker.controller.postMessage({type:'SCHEDULE_NOTIFICATION',id:m.id,title:'⏰ 약속 '+label+'!',body:m.title,notifTime:notifMs});
       }
       var ts=new Date(notifMs).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      alert('✅ 알림 설정 완료!\n'+ts+'에 알려드릴게요.');
+      alert('✅ 알림 예약 완료!\n'+ts+'에 알려드릴게요.\n\n※ 휴대폰이 절전이거나 앱이 완전히 닫혀 있으면 제때 못 울릴 수 있어요.\n그런 경우엔 앱을 여는 즉시 알려드립니다.');
     });
   }
   function cancelNotif(id){
@@ -497,17 +497,27 @@
       navigator.serviceWorker.controller.postMessage({type:'CANCEL_NOTIFICATION',id:id});
     }
   }
+  function fmtLate(min){
+    if(min<60) return min+'분';
+    if(min<1440) return Math.floor(min/60)+'시간';
+    return Math.floor(min/1440)+'일';
+  }
   function checkNotifs(){
     var stored=JSON.parse(localStorage.getItem('memoapp_notifs')||'[]');
     var now=Date.now(),remaining=[];
     stored.forEach(function(n){
-      if(now>=n.notifTime&&now<n.notifTime+120000){
+      if(now>=n.notifTime){
+        // 예전에는 '예정시각 후 2분'이 지나면 보여주지도 않고 목록에서 지웠다.
+        // 앱을 닫아둔 사이 시간이 지나면 약속 알림이 그냥 사라져 놓쳤다.
+        // 늦더라도 반드시 알리고, 얼마나 지났는지 함께 보여준다.
+        var late=Math.floor((now-n.notifTime)/60000);
+        var body=n.body+(late>=2?'  (지난 알림 · '+fmtLate(late)+' 전)':'');
         if(navigator.serviceWorker&&navigator.serviceWorker.controller){
-          navigator.serviceWorker.controller.postMessage({type:'SHOW_NOW',title:n.title,body:n.body});
+          navigator.serviceWorker.controller.postMessage({type:'SHOW_NOW',title:n.title,body:body});
         } else if(Notification.permission==='granted'){
-          new Notification(n.title,{body:n.body,icon:'/memoapp/icons/icon-192x192.png'});
+          new Notification(n.title,{body:body,icon:'/memoapp/icons/icon-192x192.png'});
         }
-      } else if(now<n.notifTime){ remaining.push(n); }
+      } else { remaining.push(n); }
     });
     localStorage.setItem('memoapp_notifs',JSON.stringify(remaining));
   }
@@ -525,6 +535,9 @@
     history.replaceState({screen:'main'},'');
     checkNotifs();
     setInterval(checkNotifs,60000);
+    // 앱으로 돌아온 즉시 확인한다. (60초 주기만 두면 복귀 후 최대 1분을 더 기다린다.
+    //  백그라운드에서는 타이머가 얼어붙으므로 복귀 시점 확인이 실질적인 알림 경로다.)
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden) checkNotifs(); });
     window.addEventListener('popstate',function(){
       if(!document.getElementById('overlay-cat').classList.contains('hidden')){closeCatPop();history.pushState({},'');return;}
       if(!document.getElementById('overlay-longpress').classList.contains('hidden')){closeLongPress();history.pushState({},'');return;}
