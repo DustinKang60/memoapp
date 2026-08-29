@@ -102,9 +102,10 @@
     <div class="scroll-area" style="padding:14px">
       <div id="calendar-wrap"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <button class="btn-primary" onclick="openCatPop(null)" style="display:flex;align-items:center;gap:6px">✏️ 메모작성</button>
+        <button class="btn-primary" onclick="openCatPop(null)" style="display:flex;align-items:center;gap:6px;font-size:1em">✏️ 메모작성</button>
         <span id="memo-count" style="font-size:12px;color:#64748b"></span>
       </div>
+      <div id="cal-filter-banner"></div>
       <div id="memo-list"></div>
       <div id="loadmore-wrap"></div>
       <div class="footer">작은앱공방 · 강종훈</div>
@@ -295,7 +296,7 @@
   };
   function getWMO(c){return WMO[c]||{i:'🌡️',l:'알 수 없음'};}
   var memos=[],archived=[],settings={isDark:true,font:'Noto Sans KR',fontSize:15,cats:DEFAULT_CATS.slice()};
-  var showCount=20,filterCat='전체',weatherData=null,calDate=new Date(),editId=null,writeDate=new Date();
+  var showCount=20,filterCat='전체',weatherData=null,calDate=new Date(),editId=null,writeDate=new Date(),calFilterDate=null;
   var writeCat='메모',writeImages=[],writeApptDate='',writeApptTime='',writeReminder=60;
   var longPressId=null,longPressTimer=null,catPopDate=null;
 
@@ -340,9 +341,21 @@
   }
   function calPrev(){calDate=new Date(calDate.getFullYear(),calDate.getMonth()-1,1);renderCalendar();}
   function calNext(){calDate=new Date(calDate.getFullYear(),calDate.getMonth()+1,1);renderCalendar();}
-  function onCalDay(y,mo,d){openCatPop(new Date(y,mo,d));}
+  function onCalDay(y,mo,d){
+    var date=new Date(y,mo,d);
+    var hasMemo=memos.some(function(m){return sameDay(m.date,date);});
+    if(hasMemo){ calFilterDate=date; showCount=20; renderMemoList(); }
+    else{ openCatPop(date); }
+  }
+  function clearCalFilter(){ calFilterDate=null; showCount=20; renderMemoList(); }
 
-  function getSorted(){return memos.slice().sort(function(a,b){return b.date-a.date;});}
+  function getSorted(){
+    var list=calFilterDate?memos.filter(function(m){return sameDay(m.date,calFilterDate);}):memos.slice();
+    return list.sort(function(a,b){
+      var au=a.updatedAt||a.date.getTime(), bu=b.updatedAt||b.date.getTime();
+      return bu-au;
+    });
+  }
   function memoCardHTML(m){
     var mt=CAT_META[m.category]||{icon:'🗂️',color:'#94a3b8'};
     var imgBadge=m.images&&m.images.length>0?'<div style="font-size:0.8em;color:#64748b;margin-top:4px">📷 '+m.images.length+'장</div>':'';
@@ -366,8 +379,13 @@
 
   function renderMemoList(){
     var filtered=getSorted(),visible=filtered.slice(0,showCount),hasMore=filtered.length>showCount;
-    document.getElementById('memo-count').textContent=filtered.length>showCount?'전체 '+filtered.length+'개 중 '+showCount+'개':'전체 '+filtered.length+'개';
-    if(filtered.length===0){document.getElementById('memo-list').innerHTML='<div class="empty"><div style="font-size:44px;margin-bottom:12px">📓</div><div style="font-size:14px;line-height:1.8">아직 메모가 없어요<br>첫 메모를 작성해보세요!</div></div>';document.getElementById('loadmore-wrap').innerHTML='';return;}
+    var banner=document.getElementById('cal-filter-banner');
+    if(calFilterDate){
+      banner.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;background:#1a1d2e;border:1px solid #2d3154;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px"><span>📅 '+fmtDate(calFilterDate)+' 메모만 보는 중</span><button onclick="clearCalFilter()" style="background:none;border:none;color:#3b82f6;cursor:pointer;font-weight:700;font-size:13px">‹ 전체보기</button></div>';
+    } else { banner.innerHTML=''; }
+    var countLabel=calFilterDate?'이 날짜 '+filtered.length+'개':(filtered.length>showCount?'전체 '+filtered.length+'개 중 '+showCount+'개':'전체 '+filtered.length+'개');
+    document.getElementById('memo-count').textContent=countLabel;
+    if(filtered.length===0){document.getElementById('memo-list').innerHTML='<div class="empty"><div style="font-size:44px;margin-bottom:12px">📓</div><div style="font-size:14px;line-height:1.8">'+(calFilterDate?'이 날짜엔 메모가 없어요':'아직 메모가 없어요<br>첫 메모를 작성해보세요!')+'</div></div>';document.getElementById('loadmore-wrap').innerHTML='';return;}
     var listEl=document.getElementById('memo-list');listEl.innerHTML=visible.map(memoCardHTML).join('');attachCardEvents(listEl,false);
     document.getElementById('loadmore-wrap').innerHTML=hasMore?'<div style="text-align:center;padding:8px 0 4px"><button onclick="loadMore()" style="background:transparent;border:1px solid #2d3154;border-radius:20px;padding:8px 28px;font-size:13px;color:#64748b;cursor:pointer">더보기 ('+(filtered.length-showCount)+'개 남음)</button></div>':filtered.length>20?'<div style="text-align:center;padding:4px 0"><button onclick="showCount=20;renderMemoList()" style="background:transparent;border:none;font-size:12px;color:#64748b;cursor:pointer">▲ 접기</button></div>':'';
   }
@@ -384,7 +402,7 @@
   }
   function openEditArchive(id){
     var m=archived.find(function(x){return x.id===id;});if(!m)return;
-    editId=id;writeCat=m.category;writeImages=(m.images||[]).slice();writeApptDate=m.apptDate||'';writeApptTime=m.apptTime||'';writeReminder=m.reminder!=null?m.reminder:60;writeDate=m.date;
+    editId=id;writeCat=m.category;writeImages=(m.images||[]).slice();writeApptDate=m.apptDate||'';writeApptTime=m.apptTime||'';writeReminder=m.reminder!=null?m.reminder:60;writeDate=m.date;weatherData=m.weather||null;
     renderWriteScreen(true);document.getElementById('write-title').value=m.title;document.getElementById('write-content').value=m.content;
     setTimeout(function(){autoResize(document.getElementById('write-content'));},50);
     document.getElementById('screen-write').dataset.fromArchive='1';showScreen('write');
@@ -393,8 +411,8 @@
   function openCatPop(date){catPopDate=date;document.getElementById('cat-pop-date').textContent=date?fmtDate(date):'';document.getElementById('cat-pop-grid').innerHTML=settings.cats.map(function(cat){var mt=CAT_META[cat]||{icon:'🗂️',color:'#94a3b8'};return '<button class="cat-btn" style="border-color:'+mt.color+'" onclick="startWrite(\''+cat+'\')"><span style="font-size:26px">'+mt.icon+'</span><span>'+cat+'</span></button>';}).join('');document.getElementById('overlay-cat').classList.remove('hidden');}
   function closeCatPop(){document.getElementById('overlay-cat').classList.add('hidden');}
 
-  function startWrite(cat){closeCatPop();editId=null;writeCat=cat;writeImages=[];writeApptDate='';writeApptTime='';writeReminder=60;writeDate=catPopDate||new Date();document.getElementById('screen-write').dataset.fromArchive='0';renderWriteScreen(false);showScreen('write');}
-  function openEdit(id){var m=memos.find(function(x){return x.id===id;});if(!m)return;editId=id;writeCat=m.category;writeImages=(m.images||[]).slice();writeApptDate=m.apptDate||'';writeApptTime=m.apptTime||'';writeReminder=m.reminder!=null?m.reminder:60;writeDate=m.date;document.getElementById('screen-write').dataset.fromArchive='0';renderWriteScreen(true);document.getElementById('write-title').value=m.title;document.getElementById('write-content').value=m.content;setTimeout(function(){autoResize(document.getElementById('write-content'));},50);showScreen('write');}
+  function startWrite(cat){closeCatPop();editId=null;writeCat=cat;writeImages=[];writeApptDate='';writeApptTime='';writeReminder=60;writeDate=catPopDate||new Date();weatherData=null;document.getElementById('screen-write').dataset.fromArchive='0';renderWriteScreen(false);showScreen('write');}
+  function openEdit(id){var m=memos.find(function(x){return x.id===id;});if(!m)return;editId=id;writeCat=m.category;writeImages=(m.images||[]).slice();writeApptDate=m.apptDate||'';writeApptTime=m.apptTime||'';writeReminder=m.reminder!=null?m.reminder:60;writeDate=m.date;weatherData=m.weather||null;document.getElementById('screen-write').dataset.fromArchive='0';renderWriteScreen(true);document.getElementById('write-title').value=m.title;document.getElementById('write-content').value=m.content;setTimeout(function(){autoResize(document.getElementById('write-content'));},50);showScreen('write');}
   function renderWriteScreen(isEdit){
     var mt=CAT_META[writeCat]||{icon:'🗂️',color:'#94a3b8'};
     document.getElementById('write-topbar-title').textContent=mt.icon+' '+writeCat;
@@ -403,7 +421,7 @@
     if(!isEdit){document.getElementById('write-title').value='';document.getElementById('write-content').value='';}
     document.getElementById('write-delete-btn').style.display=isEdit?'flex':'none';
     document.getElementById('write-share-btn').style.display=isEdit?'block':'none';
-    document.getElementById('weather-wrap').innerHTML='';if(writeCat==='일기'){if(sameDay(writeDate,new Date())){fetchWeather();}else{renderWeatherBadge();}}
+    document.getElementById('weather-wrap').innerHTML='';if(writeCat==='일기'){if(!isEdit&&sameDay(writeDate,new Date())){fetchWeather();}else{renderWeatherBadge();}}
     document.getElementById('appt-wrap').innerHTML='';if(writeCat==='약속')renderApptBox();
     renderImgList();
   }
@@ -424,7 +442,7 @@
     if(!title&&!content)return;
     var ad=document.getElementById('appt-date'),at=document.getElementById('appt-time');
     if(ad)writeApptDate=ad.value;if(at)writeApptTime=at.value;
-    var m={id:editId||Date.now(),category:writeCat,date:writeDate||new Date(),title:title||'(제목 없음)',content:content,weather:writeCat==='일기'?weatherData:undefined,images:writeImages.slice(),apptDate:writeCat==='약속'?writeApptDate:undefined,apptTime:writeCat==='약속'?writeApptTime:undefined,reminder:writeCat==='약속'?writeReminder:undefined};
+    var m={id:editId||Date.now(),category:writeCat,date:writeDate||new Date(),title:title||'(제목 없음)',content:content,weather:writeCat==='일기'?weatherData:undefined,images:writeImages.slice(),apptDate:writeCat==='약속'?writeApptDate:undefined,apptTime:writeCat==='약속'?writeApptTime:undefined,reminder:writeCat==='약속'?writeReminder:undefined,updatedAt:Date.now()};
     var fromArchive=document.getElementById('screen-write').dataset.fromArchive==='1';
     document.getElementById('screen-write').dataset.fromArchive='0';
     if(fromArchive){var updated=editId?archived.map(function(x){return x.id===m.id?m:x;}):[m].concat(archived);saveArchived(updated);if(writeCat==='약속'&&writeApptDate&&writeApptTime)scheduleNotif(m);showScreen('archive');}
