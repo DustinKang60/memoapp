@@ -1,5 +1,6 @@
 // ─── Service Worker - 메모앱 ───────────────────────────────────
-const CACHE_NAME = "memoapp-v7";
+const CACHE_NAME = "memoapp-v8";
+const FONT_CACHE = "memoapp-fonts";   // 버전과 무관하게 유지
 const ASSETS = [
   "/memoapp/",
   "/memoapp/index.html",
@@ -17,10 +18,13 @@ self.addEventListener("install", e => {
 });
 
 // ── 활성화 ──
+// 주의: dustinkang60.github.io 의 앱들은 저장 공간(Cache Storage)을 함께 쓴다.
+// 자기 이름으로 시작하는 캐시만 지워야 한다 — 전부 지우면 다른 앱의 오프라인 저장분이 날아가
+// 그 앱이 해외·오프라인에서 아예 안 열린다.
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k.startsWith('memoapp-') && k !== CACHE_NAME && k !== FONT_CACHE).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -28,6 +32,22 @@ self.addEventListener("activate", e => {
 
 // ── 네트워크 요청 캐시 ──
 self.addEventListener("fetch", e => {
+
+  // 구글 웹폰트: 한 번 받으면 저장해 두고 이후엔 저장본을 쓴다 → 해외·오프라인에서도 같은 글꼴
+  if (e.request.url.indexOf('fonts.googleapis.com') !== -1 || e.request.url.indexOf('fonts.gstatic.com') !== -1) {
+    e.respondWith(
+      caches.open(FONT_CACHE).then(function(cache) {
+        return cache.match(e.request).then(function(cached) {
+          if (cached) return cached;
+          return fetch(e.request).then(function(res) {
+            if (res && (res.ok || res.type === 'opaque')) cache.put(e.request, res.clone());
+            return res;
+          });
+        });
+      })
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request))
   );
